@@ -32,20 +32,40 @@
         background: #2a2f42; color: #e6e8f0; border: none;
         padding: 6px 14px; border-radius: 999px; font-size: 14px; cursor: pointer;
       }
-      #overlay {
+      .overlay {
         position: fixed; inset: 0; z-index: 3;
         display: none; align-items: center; justify-content: center;
         background: rgba(10,12,18,0.72); backdrop-filter: blur(3px);
       }
-      #overlay.show { display: flex; }
+      .overlay.show { display: flex; }
       #overlay .card {
         text-align: center; color: #e6e8f0;
+        animation: pop 0.35s cubic-bezier(0.2, 1.4, 0.5, 1);
       }
+      @keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
       #overlay h1 { font-size: 40px; margin-bottom: 8px; }
+      #clear-stars { font-size: 44px; letter-spacing: 6px; color: #f0c000; height: 52px; }
+      #clear-stars .dim { color: #3a4056; }
+      #clear-moves { color: #aab; font-size: 15px; margin-top: 6px; }
       #overlay button {
         margin-top: 20px; background: #30a46c; color: #fff; border: none;
         padding: 12px 28px; border-radius: 12px; font-size: 18px; cursor: pointer;
       }
+      /* レベル選択 */
+      #level-select .ls-card {
+        background: #1b1e2b; border-radius: 16px; padding: 18px;
+        width: min(92vw, 460px); max-height: 80vh; overflow: auto; color: #e6e8f0;
+      }
+      .ls-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; font-size: 18px; }
+      .ls-head button { background: #2a2f42; color: #e6e8f0; border: none; width: 34px; height: 34px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+      #ls-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+      .ls-cell {
+        aspect-ratio: 1; border: none; border-radius: 12px; cursor: pointer;
+        background: #2a2f42; color: #e6e8f0; font-size: 18px; font-weight: 600;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+      }
+      .ls-cell.done { background: #26483a; }
+      .ls-cell .s { font-size: 11px; color: #f0c000; letter-spacing: 1px; height: 12px; }
     </style>
   </head>
   <body>
@@ -53,16 +73,29 @@
       <button id="prev-btn" aria-label="前のレベル">‹</button>
       <span id="level-label">Level 1</span>
       <button id="next-lv-btn" aria-label="次のレベル">›</button>
+      <button id="levels-btn">Levels</button>
       <button id="reset-btn">Reset</button>
       <button id="solve-btn">Solve</button>
+      <button id="mute-btn" aria-label="消音切替">🔊</button>
     </div>
     <div id="app">
       <canvas id="game"></canvas>
     </div>
-    <div id="overlay">
+    <div id="overlay" class="overlay">
       <div class="card">
         <h1>Clear! 🎉</h1>
+        <div id="clear-stars"></div>
+        <div id="clear-moves"></div>
         <button id="next-btn">Next Level</button>
+      </div>
+    </div>
+    <div id="level-select" class="overlay">
+      <div class="ls-card">
+        <div class="ls-head">
+          <span>Level Select</span>
+          <button id="ls-close" aria-label="閉じる">✕</button>
+        </div>
+        <div id="ls-grid"></div>
       </div>
     </div>
     <script type="module" src="/src/main.ts"></script>

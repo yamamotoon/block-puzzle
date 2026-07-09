@@ -5,6 +5,8 @@ import { solve, type SolveMove } from './core/solver';
 import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
 import type { ColorId, Cell, Edge } from './core/types';
+import { sfx } from './platform/audio';
+import { recordResult, allResults } from './platform/storage';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const app = document.getElementById('app') as HTMLElement;
@@ -15,6 +17,13 @@ const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
 const prevLvBtn = document.getElementById('prev-btn') as HTMLButtonElement;
 const nextLvBtn = document.getElementById('next-lv-btn') as HTMLButtonElement;
 const solveBtn = document.getElementById('solve-btn') as HTMLButtonElement;
+const levelsBtn = document.getElementById('levels-btn') as HTMLButtonElement;
+const muteBtn = document.getElementById('mute-btn') as HTMLButtonElement;
+const levelSelect = document.getElementById('level-select') as HTMLElement;
+const lsGrid = document.getElementById('ls-grid') as HTMLElement;
+const lsClose = document.getElementById('ls-close') as HTMLButtonElement;
+const clearStars = document.getElementById('clear-stars') as HTMLElement;
+const clearMoves = document.getElementById('clear-moves') as HTMLElement;
 
 const renderer: Renderer = new ThreeRenderer(canvas);
 
@@ -22,8 +31,14 @@ let levelIndex = 0;
 let game = new Game(LEVELS[levelIndex]);
 let cleared = false;
 
+// ---- 手数・評価 ------------------------------------------------------------
+let currentMinMoves = 0; // 現レベルの最小手数（★判定の基準）
+let movesUsed = 0; // プレイヤーの実手数
+let usedSolve = false; // Solve 再生を使ったか（使うと★対象外）
+
 // ---- ドラッグ状態 ----------------------------------------------------------
 let drag: DragController | null = null;
+let dragStartSig: string | null = null; // 掴んだ時のブロック位置（移動有無の判定用）
 
 // ---- 脱出演出 --------------------------------------------------------------
 const EXIT_DURATION = 240; // ms
@@ -49,6 +64,9 @@ function loadLevel(index: number): void {
   drag = null;
   effects = [];
   replay = null;
+  movesUsed = 0;
+  usedSolve = false;
+  currentMinMoves = solve(LEVELS[levelIndex]).minMoves;
   overlay.classList.remove('show');
   levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVELS.length}`;
 }
@@ -58,6 +76,7 @@ function startReplay(): void {
   loadLevel(levelIndex); // 初期状態に戻す
   const res = solve(LEVELS[levelIndex]);
   if (!res.solvable || !res.path) return;
+  usedSolve = true;
   replay = { moves: res.path, index: 0, nextTime: 0 };
 }
 
@@ -77,6 +96,9 @@ function applySolveMove(move: SolveMove, now: number): void {
     const snap = b.cells.map((c) => ({ ...c }));
     b.removed = true;
     pushExitEffect(snap, b.color, gate.edge, now);
+    sfx.exit();
+  } else {
+    sfx.move();
   }
 }
 
@@ -91,6 +113,7 @@ function canvasPoint(e: PointerEvent): { x: number; y: number } {
 }
 
 function onPointerDown(e: PointerEvent): void {
+  sfx.resume(); // 最初のユーザー操作で音声を有効化
   if (cleared || replay) return;
   const p = canvasPoint(e);
   const cell = renderer.pixelToCell(p.x, p.y);
@@ -98,6 +121,8 @@ function onPointerDown(e: PointerEvent): void {
   if (!block) return;
   const f = renderer.pixelToCellF(p.x, p.y);
   drag = new DragController(game, block, f.c, f.r);
+  dragStartSig = JSON.stringify(block.cells);
+  sfx.grab();
   canvas.setPointerCapture(e.pointerId);
 }
 
@@ -129,8 +154,21 @@ function spawnExit(d: DragController, now: number): void {
 }
 
 function endDrag(pointerId: number): void {
-  if (drag?.exited) spawnExit(drag, performance.now());
+  if (drag) {
+    if (drag.exited) {
+      spawnExit(drag, performance.now());
+      movesUsed++;
+      sfx.exit();
+    } else {
+      const b = game.blocks.find((x) => x.id === drag!.blockId);
+      if (b && JSON.stringify(b.cells) !== dragStartSig) {
+        movesUsed++;
+        sfx.move();
+      }
+    }
+  }
   drag = null;
+  dragStartSig = null;
   if (canvas.hasPointerCapture?.(pointerId)) canvas.releasePointerCapture(pointerId);
   if (game.isCleared()) cleared = true; // オーバーレイは演出終了後に frame で表示
 }
@@ -162,9 +200,58 @@ function frame(ts: number): void {
 
   // クリア表示は、吸い込み演出が終わってから
   if (cleared && effects.length === 0 && !overlay.classList.contains('show')) {
-    overlay.classList.add('show');
+    showClear();
   }
   requestAnimationFrame(frame);
+}
+
+function starsFor(moves: number, min: number): number {
+  if (moves <= min) return 3;
+  if (moves <= Math.ceil(min * 1.5)) return 2;
+  return 1;
+}
+
+function renderStars(n: number): string {
+  let out = '';
+  for (let i = 0; i < 3; i++) out += i < n ? '★' : '<span class="dim">★</span>';
+  return out;
+}
+
+function showClear(): void {
+  const stars = usedSolve ? 0 : starsFor(movesUsed, currentMinMoves);
+  clearStars.innerHTML = renderStars(stars);
+  clearMoves.textContent = usedSolve
+    ? 'Solve を使用（★対象外）'
+    : `手数 ${movesUsed} ／ 最小 ${currentMinMoves}`;
+  if (!usedSolve) recordResult(levelIndex, movesUsed, stars);
+  sfx.clear();
+  overlay.classList.add('show');
+}
+
+function buildLevelSelect(): void {
+  const results = allResults();
+  lsGrid.innerHTML = '';
+  for (let i = 0; i < LEVELS.length; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'ls-cell';
+    const r = results[i];
+    if (r) btn.classList.add('done');
+    const num = document.createElement('div');
+    num.textContent = String(i + 1);
+    const s = document.createElement('div');
+    s.className = 's';
+    s.textContent = r ? '★'.repeat(r.stars) : '';
+    btn.append(num, s);
+    btn.addEventListener('click', () => {
+      levelSelect.classList.remove('show');
+      loadLevel(i);
+    });
+    lsGrid.append(btn);
+  }
+}
+
+function updateMuteBtn(): void {
+  muteBtn.textContent = sfx.muted ? '🔇' : '🔊';
 }
 
 canvas.addEventListener('pointerdown', onPointerDown);
@@ -177,6 +264,18 @@ nextBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
 prevLvBtn.addEventListener('click', () => loadLevel(levelIndex - 1));
 nextLvBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
 solveBtn.addEventListener('click', () => startReplay());
+levelsBtn.addEventListener('click', () => {
+  buildLevelSelect();
+  levelSelect.classList.add('show');
+});
+lsClose.addEventListener('click', () => levelSelect.classList.remove('show'));
+muteBtn.addEventListener('click', () => {
+  sfx.setMuted(!sfx.muted);
+  if (!sfx.muted) sfx.resume();
+  updateMuteBtn();
+});
 
+updateMuteBtn();
+loadLevel(0);
 resize();
 requestAnimationFrame(frame);
