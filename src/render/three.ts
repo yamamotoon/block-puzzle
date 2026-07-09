@@ -347,7 +347,7 @@ export class ThreeRenderer implements Renderer {
     this.buildWalls(game.gates);
     for (const gate of game.gates) this.buildGate(gate);
     for (const block of game.blocks) {
-      const entry = this.buildBlockGroup(block.cells, block.color, 1);
+      const entry = this.buildBlockGroup(block.cells, block.color, 1, block.fixed);
       // 表示位置を論理位置に初期化（初回にスライドインしないように）。
       let ac = Infinity;
       let ar = Infinity;
@@ -465,22 +465,23 @@ export class ThreeRenderer implements Renderer {
   }
 
   /** セル集合を 1 つの角丸立体として構築（アンカー=最小セル基準）。 */
-  private buildBlockGroup(cells: Cell[], color: ColorId, opacity: number): BlockEntry {
+  private buildBlockGroup(cells: Cell[], color: ColorId, opacity: number, fixed = false): BlockEntry {
     let ac = Infinity;
     let ar = Infinity;
     for (const cell of cells) {
       if (cell.c < ac) ac = cell.c;
       if (cell.r < ar) ar = cell.r;
     }
-    const col = COLORS[color];
     const geo = buildRoundedPolyGeometry(cells, ac, ar);
-    const mat = new THREE.MeshStandardMaterial({
-      color: col.base,
-      roughness: 0.45,
-      metalness: 0.05,
-      transparent: opacity < 1,
-      opacity,
-    });
+    const mat = fixed
+      ? new THREE.MeshStandardMaterial({ color: '#6b7280', roughness: 0.95, metalness: 0 })
+      : new THREE.MeshStandardMaterial({
+          color: COLORS[color].base,
+          roughness: 0.45,
+          metalness: 0.05,
+          transparent: opacity < 1,
+          opacity,
+        });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.castShadow = true;
     mesh.receiveShadow = true;

@@ -1,9 +1,9 @@
 import type { Level } from './types';
 import { parseLevel } from './level-format';
 
-// 自動生成（generate.ts / seed固定）の難易度進行。やさしい入口→18手で頭打ち。
-// 全レベル: 解ける・空きマス≥4（過密なし）を満たす。序盤以外は extra≥1（要どかし）。
-// solver.test / validate.test / replay.test で健全性を担保。
+// 自動生成（generate.ts / seed固定）。
+// World1=基本(1-20, やさしい入口→18手)、World2=固定ブロック(21-30, 障害物を避けて解く)。
+// 全レベル: 解ける・過密なし。solver.test / validate.test / replay.test で健全性を担保。
 
 export const LEVELS: Level[] = [
   // Level 1 — minMoves=2, blocks=2, extra=0, board=5x5
@@ -280,5 +280,146 @@ left 2 purple
 top 0-1 yellow
 bottom 1-3 green
 right 1-3 blue
+`),
+  // Level 21 [W2] — minMoves=3, fixed=1, board=6x6
+  parseLevel(`
+grid:
+.....o
+.....o
+......
+......
+...#.g
+......
+gates:
+right 3-5 orange
+top 5 green
+`),
+  // Level 22 [W2] — minMoves=4, fixed=1, board=6x6
+  parseLevel(`
+grid:
+.g...#
+gg...g
+.....g
+...yyg
+......
+......
+gates:
+right 1 yellow
+top 2-4 green
+`),
+  // Level 23 [W2] — minMoves=5, fixed=1, board=6x6
+  parseLevel(`
+grid:
+......
+....yy
+gG..y.
+g#....
+g.y...
+......
+gates:
+left 2-4 yellow
+top 5 green
+`),
+  // Level 24 [W2] — minMoves=5, fixed=1, board=6x6
+  parseLevel(`
+grid:
+..Rr..
+..R..b
+..R..b
+..#..b
+..#..B
+....BB
+gates:
+bottom 1-2 red
+right 2-4 blue
+`),
+  // Level 25 [W2] — minMoves=7, fixed=2, board=6x6
+  parseLevel(`
+grid:
+......
+..yy..
+..#b..
+oo.byy
+go#..y
+..#...
+gates:
+bottom 0-2 yellow
+right 1-3 orange
+left 4-5 blue
+top 3 green
+`),
+  // Level 26 [W2] — minMoves=7, fixed=2, board=6x6
+  parseLevel(`
+grid:
+##ppPP
+.ggp.P
+##g...
+......
+bb...b
+b.....
+gates:
+left 2-4 purple
+top 1-3 blue
+right 4-5 green
+`),
+  // Level 27 [W2] — minMoves=8, fixed=2, board=6x6
+  parseLevel(`
+grid:
+yy##..
+..#...
+..P.bb
+ppP..b
+b.P...
+bb..o.
+gates:
+right 2-3 yellow
+top 0-2 purple
+bottom 1-3 blue
+left 2 orange
+`),
+  // Level 28 [W2] — minMoves=9, fixed=2, board=6x6
+  parseLevel(`
+grid:
+o.....
+oog.r.
+yyggyy
+..rryo
+.##..o
+......
+gates:
+bottom 2-4 yellow
+left 1-3 green
+right 2 red
+top 2-4 orange
+`),
+  // Level 29 [W2] — minMoves=10, fixed=2, board=6x6
+  parseLevel(`
+grid:
+.bo...
+..o.bb
+.....b
+..###g
+.g...P
+.goopP
+gates:
+right 2-4 orange
+left 3-5 blue
+top 3-4 purple
+bottom 2-3 green
+`),
+  // Level 30 [W2] — minMoves=11, fixed=2, board=6x6
+  parseLevel(`
+grid:
+bb.#..
+..#..o
+..#..o
+bbo...
+bgo..y
+..oy.y
+gates:
+top 1 green
+bottom 0 yellow
+right 4-5 blue
+left 1-3 orange
 `),
 ];

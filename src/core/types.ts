@@ -35,6 +35,8 @@ export interface BlockDef {
   id: string;
   color: ColorId;
   cells: Cell[];
+  /** 固定ブロック：動かせず脱出もしない障害物。color は描画上使わない。 */
+  fixed?: boolean;
 }
 
 /** 1 ステージの定義。 */

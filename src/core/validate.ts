@@ -82,8 +82,9 @@ export function validateLevel(level: Level): LevelIssues {
     }
   }
 
-  // 設計上の注意（警告）
+  // 設計上の注意（警告）。固定ブロックは脱出しないのでゲート関連はスキップ。
   for (const b of blocks) {
+    if (b.fixed) continue;
     if (!hasUsableGate(b, gates)) {
       warnings.push(`ブロック ${b.id}(${b.color}) は幅の合う同色ゲートが無く、脱出できません`);
     }
@@ -93,7 +94,7 @@ export function validateLevel(level: Level): LevelIssues {
       }
     }
   }
-  const blockColors = new Set(blocks.map((b) => b.color));
+  const blockColors = new Set(blocks.filter((b) => !b.fixed).map((b) => b.color));
   for (const g of gates) {
     if (!blockColors.has(g.color)) {
       warnings.push(`ゲート(${g.edge},${g.color}) に対応するブロックがありません`);

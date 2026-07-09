@@ -30,9 +30,18 @@ type Anchors = Array<Cell | null>; // null = 消去済み
 export function solve(level: Level, maxExpanded = 300000): SolveResult {
   const { cols, rows, gates } = level;
 
+  // 固定ブロックは動かない静的障害物として扱い、探索対象からは外す。
+  const fixedCells = new Set<string>();
+  for (const b of level.blocks) {
+    if (b.fixed) for (const c of b.cells) fixedCells.add(`${c.c},${c.r}`);
+  }
+
   const sblocks: SBlock[] = [];
   const initAnchors: Anchors = [];
-  for (const b of level.blocks) {
+  const origIndex: number[] = []; // 可動ブロック番号 → level.blocks 上の番号
+  for (let bi = 0; bi < level.blocks.length; bi++) {
+    const b = level.blocks[bi];
+    if (b.fixed) continue;
     let mc = Infinity;
     let mr = Infinity;
     for (const c of b.cells) {
@@ -41,6 +50,7 @@ export function solve(level: Level, maxExpanded = 300000): SolveResult {
     }
     sblocks.push({ color: b.color, offsets: b.cells.map((c) => ({ c: c.c - mc, r: c.r - mr })) });
     initAnchors.push({ c: mc, r: mr });
+    origIndex.push(bi);
   }
   const n = sblocks.length;
 
@@ -51,7 +61,7 @@ export function solve(level: Level, maxExpanded = 300000): SolveResult {
     anchors.map((a) => (a ? `${a.c},${a.r}` : 'x')).join('|');
 
   const occupancyExcept = (anchors: Anchors, exclude: number): Set<string> => {
-    const s = new Set<string>();
+    const s = new Set<string>(fixedCells); // 固定ブロックは常に障害物
     for (let i = 0; i < n; i++) {
       const a = anchors[i];
       if (i === exclude || !a) continue;
@@ -167,14 +177,14 @@ export function solve(level: Level, maxExpanded = 300000): SolveResult {
       if (exitAnchor) {
         const next = node.anchors.slice();
         next[i] = null;
-        relax(next, node.g + 1, curKey, { block: i, to: exitAnchor });
+        relax(next, node.g + 1, curKey, { block: origIndex[i], to: exitAnchor });
       }
       // 移動
       for (const a of reach) {
         if (a.c === cur.c && a.r === cur.r) continue;
         const next = node.anchors.slice();
         next[i] = a;
-        relax(next, node.g + 1, curKey, { block: i, to: a });
+        relax(next, node.g + 1, curKey, { block: origIndex[i], to: a });
       }
     }
   }

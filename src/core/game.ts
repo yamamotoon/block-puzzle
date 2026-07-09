@@ -5,6 +5,7 @@ import { validateLevel } from './validate';
 export interface Block extends BlockDef {
   cells: Cell[];
   removed: boolean;
+  fixed: boolean;
 }
 
 function key(c: number, r: number): string {
@@ -60,6 +61,7 @@ export class Game {
       color: b.color,
       cells: b.cells.map((c) => ({ ...c })),
       removed: false,
+      fixed: b.fixed ?? false,
     }));
   }
 
@@ -161,14 +163,15 @@ export class Game {
 
   /** ブロックが今そのまま出られる同色ゲートを返す（無ければ null）。 */
   findExitGate(block: Block): Gate | null {
+    if (block.fixed) return null;
     for (const gate of this.gates) {
       if (gate.color === block.color && this.fitsGate(block, gate)) return gate;
     }
     return null;
   }
 
-  /** 全ブロックが消えていればクリア。 */
+  /** 固定ブロック以外が全て消えていればクリア。 */
   isCleared(): boolean {
-    return this.blocks.every((b) => b.removed);
+    return this.blocks.every((b) => b.removed || b.fixed);
   }
 }

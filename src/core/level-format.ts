@@ -14,7 +14,10 @@ import type { Level, BlockDef, Cell, ColorId, Edge, Gate } from './types';
 // - grid: セクションは盤面。'.' か空白は空きマス、文字はブロックのセル。
 //   同じ文字で 4 近傍に連結したセルの塊が 1 ブロックになる。
 //   （隣接する同色ブロックを分けたいときは r と R のように別文字を使う）
+//   '#' は固定ブロック（動かせない障害物）。
 // - gates: セクションは 1 行 1 ゲート「辺 範囲 色」。範囲は "a-b" か単一 "a"。
+
+const FIXED_CHAR = '#';
 
 const COLOR_CHARS: Record<string, ColorId> = {
   r: 'red', R: 'red',
@@ -74,10 +77,11 @@ export function parseLevel(text: string): Level {
     for (let c = 0; c < cols; c++) {
       const ch = at(c, r);
       if (visited[r][c] || isEmpty(ch)) continue;
-      if (!(ch in COLOR_CHARS)) {
+      const isFixed = ch === FIXED_CHAR;
+      if (!isFixed && !(ch in COLOR_CHARS)) {
         throw new Error(`parseLevel: 未知の文字 '${ch}' (${c},${r})`);
       }
-      const color = COLOR_CHARS[ch];
+      const color: ColorId = isFixed ? 'red' : COLOR_CHARS[ch]; // 固定は色未使用（描画で無視）
       const cells: Cell[] = [];
       const stack: Array<[number, number]> = [[c, r]];
       while (stack.length) {
@@ -88,7 +92,7 @@ export function parseLevel(text: string): Level {
         cells.push({ c: cc, r: rr });
         stack.push([cc + 1, rr], [cc - 1, rr], [cc, rr + 1], [cc, rr - 1]);
       }
-      blocks.push({ id: `${ch}${counter++}`, color, cells });
+      blocks.push(isFixed ? { id: `x${counter++}`, color, cells, fixed: true } : { id: `${ch}${counter++}`, color, cells });
     }
   }
 
@@ -103,6 +107,10 @@ export function levelToText(level: Level): string {
   const grid: string[][] = Array.from({ length: rows }, () => new Array<string>(cols).fill('.'));
 
   for (const b of blocks) {
+    if (b.fixed) {
+      for (const cell of b.cells) grid[cell.r][cell.c] = FIXED_CHAR;
+      continue;
+    }
     const [lo, hi] = CHARS_BY_COLOR[b.color];
     // 隣接する同色別ブロックと文字が衝突しないよう小文字/大文字を選ぶ。
     let ch = lo;

@@ -120,7 +120,7 @@ function onPointerDown(e: PointerEvent): void {
   const p = canvasPoint(e);
   const cell = renderer.pixelToCell(p.x, p.y);
   const block = game.blockAt(cell.c, cell.r);
-  if (!block) return;
+  if (!block || block.fixed) return; // 固定ブロックは掴めない
   const f = renderer.pixelToCellF(p.x, p.y);
   drag = new DragController(game, block, f.c, f.r);
   dragStartSig = JSON.stringify(block.cells);

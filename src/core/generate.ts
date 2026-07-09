@@ -40,6 +40,8 @@ export interface GenOptions {
   maxBlocksPerColor: number;
   maxBlockSize: number;
   minFreeCells: number; // 盤面に必ず残す空きマス数（過密＝理不尽を防ぐ）
+  fixedBlocks: number; // 配置する固定ブロック数
+  fixedMaxSize: number; // 固定ブロックの最大セル数
 }
 
 const DEFAULTS: GenOptions = {
@@ -49,6 +51,8 @@ const DEFAULTS: GenOptions = {
   maxBlocksPerColor: 2,
   maxBlockSize: 4,
   minFreeCells: 3,
+  fixedBlocks: 0,
+  fixedMaxSize: 2,
 };
 
 /** 1 レベル生成を試みる。作れなければ null。 */
@@ -81,6 +85,15 @@ export function generateLevel(rng: () => number, opts: Partial<GenOptions> = {})
   const blocks: Level['blocks'] = [];
   let idCounter = 0;
 
+  // 固定ブロック（障害物）を先に置く。
+  for (let f = 0; f < o.fixedBlocks; f++) {
+    const size = randInt(rng, 1, o.fixedMaxSize);
+    const cells = growPolyomino(rng, size, cols, rows, isFree);
+    if (!cells) continue;
+    for (const c of cells) occupied.add(key(c.c, c.r));
+    blocks.push({ id: `x${idCounter++}`, color: 'red', cells, fixed: true });
+  }
+
   for (const color of colors) {
     const gate = gateByColor.get(color)!;
     const gateAxisIsCol = gate.edge === 'top' || gate.edge === 'bottom';
@@ -106,7 +119,7 @@ export function generateLevel(rng: () => number, opts: Partial<GenOptions> = {})
     }
   }
 
-  if (blocks.length === 0) return null;
+  if (blocks.filter((b) => !b.fixed).length === 0) return null; // 可動ブロックが必須
   const filled = blocks.reduce((s, b) => s + b.cells.length, 0);
   if (cols * rows - filled < o.minFreeCells) return null; // 過密は不採用
   const level: Level = { cols, rows, blocks, gates };
