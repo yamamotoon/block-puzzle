@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import type { Game } from '../core/game';
 import type { Cell, ColorId, Edge, Gate } from '../core/types';
 import { COLORS, type DragRenderState, type ExitEffect, type Renderer } from './renderer';
@@ -8,7 +7,8 @@ import { COLORS, type DragRenderState, type ExitEffect, type Renderer } from './
 // 論理座標 (c, r) を XZ 平面へ写像し、y を上方向・高さに使う。
 
 const BLOCK_H = 0.8; // ブロックの高さ
-const BOX = 0.92; // 1 セルの箱の一辺（< 1 でセル間に溝が出る）
+const BLOCK_INSET = 0.07; // 輪郭を内側へ縮める量（別ブロックとの隙間 = 2×これ）
+const CORNER_R = 0.16; // 角を丸める半径（面内）
 const LIFT = 0.15; // ドラッグ中の浮き上がり量（選択が分かる程度に控えめ）
 const EXIT_SLIDE_CELLS = 3; // 脱出時に滑り出す距離（セル）
 
@@ -19,10 +19,139 @@ const EDGE_DIR: Record<Edge, { c: number; r: number }> = {
   right: { c: 1, r: 0 },
 };
 
+interface P2 {
+  x: number;
+  y: number;
+}
+
+/** ポリオミノ（セル集合）の外周を、格子コーナーの折れ線として時計回りに返す。 */
+function boundaryLoop(cells: Cell[]): P2[] {
+  const set = new Set(cells.map((c) => `${c.c},${c.r}`));
+  const has = (c: number, r: number): boolean => set.has(`${c},${r}`);
+  const edges = new Map<string, P2>(); // 始点キー → 終点
+  for (const { c, r } of cells) {
+    if (!has(c, r - 1)) edges.set(`${c},${r}`, { x: c + 1, y: r });
+    if (!has(c + 1, r)) edges.set(`${c + 1},${r}`, { x: c + 1, y: r + 1 });
+    if (!has(c, r + 1)) edges.set(`${c + 1},${r + 1}`, { x: c, y: r + 1 });
+    if (!has(c - 1, r)) edges.set(`${c},${r + 1}`, { x: c, y: r });
+  }
+  const startKey = edges.keys().next().value as string;
+  const [sx, sy] = startKey.split(',').map(Number);
+  const loop: P2[] = [{ x: sx, y: sy }];
+  let cur = startKey;
+  for (let i = 0; i < edges.size; i++) {
+    const end = edges.get(cur)!;
+    const endKey = `${end.x},${end.y}`;
+    if (endKey === startKey) break;
+    loop.push({ x: end.x, y: end.y });
+    cur = endKey;
+  }
+  return removeCollinear(loop);
+}
+
+/** 直線上の中間点（角でない点）を取り除く。 */
+function removeCollinear(loop: P2[]): P2[] {
+  const n = loop.length;
+  const out: P2[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = loop[(i - 1 + n) % n];
+    const b = loop[i];
+    const c = loop[(i + 1) % n];
+    const cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+    if (Math.abs(cross) > 1e-9) out.push(b);
+  }
+  return out;
+}
+
+function signedArea(pts: P2[]): number {
+  let s = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    s += a.x * b.y - b.x * a.y;
+  }
+  return s / 2;
+}
+
+/** 直交多角形を内側へ d だけオフセットする。 */
+function insetRectilinear(loop: P2[], d: number): P2[] {
+  const n = loop.length;
+  const inward = signedArea(loop) > 0 ? 1 : -1;
+  const unit = (a: P2, b: P2): P2 => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  };
+  const out: P2[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = loop[(i - 1 + n) % n];
+    const cur = loop[i];
+    const next = loop[(i + 1) % n];
+    const dp = unit(prev, cur);
+    const dn = unit(cur, next);
+    const np = inward > 0 ? { x: -dp.y, y: dp.x } : { x: dp.y, y: -dp.x };
+    const nn = inward > 0 ? { x: -dn.y, y: dn.x } : { x: dn.y, y: -dn.x };
+    const pp = { x: cur.x + np.x * d, y: cur.y + np.y * d };
+    const pn = { x: cur.x + nn.x * d, y: cur.y + nn.y * d };
+    // 直交する2辺の交点：水平辺は y、垂直辺は x を決める。
+    if (Math.abs(dp.x) > 0.5) out.push({ x: pn.x, y: pp.y });
+    else out.push({ x: pp.x, y: pn.y });
+  }
+  return out;
+}
+
+/** 角を丸めた THREE.Shape を作る。 */
+function roundedShape(pts: P2[]): THREE.Shape {
+  const shape = new THREE.Shape();
+  const n = pts.length;
+  const unit = (a: P2, b: P2): P2 => {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  };
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
+    const cur = pts[i];
+    const next = pts[(i + 1) % n];
+    const lenIn = Math.hypot(cur.x - prev.x, cur.y - prev.y);
+    const lenOut = Math.hypot(next.x - cur.x, next.y - cur.y);
+    const r = Math.min(CORNER_R, lenIn / 2, lenOut / 2);
+    const vIn = unit(prev, cur);
+    const vOut = unit(cur, next);
+    const p1 = { x: cur.x - vIn.x * r, y: cur.y - vIn.y * r };
+    const p2 = { x: cur.x + vOut.x * r, y: cur.y + vOut.y * r };
+    if (i === 0) shape.moveTo(p1.x, p1.y);
+    else shape.lineTo(p1.x, p1.y);
+    shape.quadraticCurveTo(cur.x, cur.y, p2.x, p2.y);
+  }
+  shape.closePath();
+  return shape;
+}
+
+/** ブロック形状（セル集合）を、角丸・面取りした 1 つの立体ジオメトリにする。 */
+export function buildRoundedPolyGeometry(cells: Cell[], ac: number, ar: number): THREE.ExtrudeGeometry {
+  const loop = boundaryLoop(cells);
+  const inset = insetRectilinear(loop, BLOCK_INSET);
+  // アンカー中心の 2D 座標へ（y は行→z の向きに合わせて反転）。
+  let pts: P2[] = inset.map((p) => ({ x: p.x - ac - 0.5, y: -(p.y - ar - 0.5) }));
+  if (signedArea(pts) < 0) pts = pts.reverse(); // ExtrudeGeometry 用に CCW へ
+  const shape = roundedShape(pts);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: BLOCK_H,
+    bevelEnabled: true,
+    bevelThickness: 0.05,
+    bevelSize: 0.05,
+    bevelSegments: 2,
+    curveSegments: 5,
+  });
+  geo.rotateX(-Math.PI / 2); // XY 平面の形状を XZ 平面へ寝かせ、高さを Y に
+  return geo;
+}
+
 interface BlockEntry {
   group: THREE.Group;
-  geo: THREE.BufferGeometry;
-  mat: THREE.Material;
   // 表示位置（イージング補間の現在値）。論理位置はマス単位で飛ぶが、ここを追従させて滑らかに見せる。
   dispX: number;
   dispY: number;
@@ -49,7 +178,6 @@ export class ThreeRenderer implements Renderer {
   private boardGroup = new THREE.Group();
   private effectGroup = new THREE.Group();
   private blockMeshes = new Map<string, BlockEntry>();
-  private effectDisposables: Array<{ geo: THREE.BufferGeometry; mat: THREE.Material }> = [];
   private currentGame: Game | null = null;
   private cols = 6;
   private rows = 6;
@@ -174,15 +302,13 @@ export class ThreeRenderer implements Renderer {
 
   private updateEffects(effects: ExitEffect[]): void {
     // 前フレームのゴーストを破棄
-    for (const child of [...this.effectGroup.children]) this.effectGroup.remove(child);
-    for (const d of this.effectDisposables) {
-      d.geo.dispose();
-      d.mat.dispose();
+    for (const child of [...this.effectGroup.children]) {
+      this.disposeGroup(child as THREE.Group);
+      this.effectGroup.remove(child);
     }
-    this.effectDisposables = [];
 
     for (const fx of effects) {
-      const { group, geo, mat } = this.buildBlockGroup(fx.cells, fx.color, 1 - fx.progress);
+      const { group } = this.buildBlockGroup(fx.cells, fx.color, 1 - fx.progress);
       // フェード中は影を出さない（影は不透明度を無視するため不自然になる）
       group.traverse((o) => {
         if (o instanceof THREE.Mesh) o.castShadow = false;
@@ -203,15 +329,13 @@ export class ThreeRenderer implements Renderer {
         this.cellCenterZ(ar) + fx.baseOffR + dir.r * slide,
       );
       this.effectGroup.add(group);
-      this.effectDisposables.push({ geo, mat });
     }
   }
 
   private rebuildScene(game: Game): void {
-    for (const { group, geo, mat } of this.blockMeshes.values()) {
-      this.scene.remove(group);
-      geo.dispose();
-      mat.dispose();
+    for (const entry of this.blockMeshes.values()) {
+      this.disposeGroup(entry.group);
+      this.scene.remove(entry.group);
     }
     this.blockMeshes.clear();
     this.disposeGroup(this.boardGroup);
@@ -340,7 +464,7 @@ export class ThreeRenderer implements Renderer {
     this.boardGroup.add(mesh);
   }
 
-  /** セル集合を 1 つの剛体ブロックとして構築（アンカー=最小セル基準の相対配置）。 */
+  /** セル集合を 1 つの角丸立体として構築（アンカー=最小セル基準）。 */
   private buildBlockGroup(cells: Cell[], color: ColorId, opacity: number): BlockEntry {
     let ac = Infinity;
     let ar = Infinity;
@@ -349,7 +473,7 @@ export class ThreeRenderer implements Renderer {
       if (cell.r < ar) ar = cell.r;
     }
     const col = COLORS[color];
-    const geo = new RoundedBoxGeometry(BOX, BLOCK_H, BOX, 3, 0.14);
+    const geo = buildRoundedPolyGeometry(cells, ac, ar);
     const mat = new THREE.MeshStandardMaterial({
       color: col.base,
       roughness: 0.45,
@@ -357,15 +481,12 @@ export class ThreeRenderer implements Renderer {
       transparent: opacity < 1,
       opacity,
     });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
     const group = new THREE.Group();
-    for (const cell of cells) {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(cell.c - ac, BLOCK_H / 2, cell.r - ar);
-      m.castShadow = true;
-      m.receiveShadow = true;
-      group.add(m);
-    }
-    return { group, geo, mat, dispX: 0, dispY: 0, dispZ: 0 };
+    group.add(mesh);
+    return { group, dispX: 0, dispY: 0, dispZ: 0 };
   }
 
   private disposeGroup(group: THREE.Group): void {
