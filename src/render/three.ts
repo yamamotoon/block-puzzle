@@ -9,7 +9,7 @@ import { COLORS, type DragRenderState, type ExitEffect, type Renderer } from './
 
 const BLOCK_H = 0.8; // ブロックの高さ
 const BOX = 0.92; // 1 セルの箱の一辺（< 1 でセル間に溝が出る）
-const LIFT = 0.35; // ドラッグ中の浮き上がり量
+const LIFT = 0.15; // ドラッグ中の浮き上がり量（選択が分かる程度に控えめ）
 const EXIT_SLIDE_CELLS = 3; // 脱出時に滑り出す距離（セル）
 
 const EDGE_DIR: Record<Edge, { c: number; r: number }> = {
@@ -36,6 +36,10 @@ const CAM_DIR = new THREE.Vector3(0, 0.9, 0.44);
 // 盤面フィット時の余白（セル単位）。横（左右）と奥行（上下）で別々に持つ。
 const FIT_MARGIN_X = 1.3;
 const FIT_MARGIN_Z = 1.8; // ゲート＋ブロック高さ＋遠近の立ち上がりぶん
+
+// 外周の壁（ゲート開口以外を塞ぐリム）。
+const WALL_T = 0.5; // 厚み（ゲートと同じ）
+const WALL_H = 0.9; // 高さ（ブロックより少し高く、脱出できないことを示す）
 
 export class ThreeRenderer implements Renderer {
   private gl: THREE.WebGLRenderer;
@@ -216,6 +220,7 @@ export class ThreeRenderer implements Renderer {
     this.rows = game.rows;
 
     this.buildBoard();
+    this.buildWalls(game.gates);
     for (const gate of game.gates) this.buildGate(gate);
     for (const block of game.blocks) {
       const entry = this.buildBlockGroup(block.cells, block.color, 1);
@@ -239,12 +244,68 @@ export class ThreeRenderer implements Renderer {
   }
 
   private buildBoard(): void {
-    const geo = new THREE.BoxGeometry(this.cols + 0.6, 0.5, this.rows + 0.6);
+    // 壁の外側まで覆うトレイ。
+    const geo = new THREE.BoxGeometry(this.cols + 2 * WALL_T + 0.3, 0.5, this.rows + 2 * WALL_T + 0.3);
     const mat = new THREE.MeshStandardMaterial({ color: '#232838', roughness: 0.95 });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(0, -0.25, 0);
     mesh.receiveShadow = true;
     this.boardGroup.add(mesh);
+  }
+
+  /** 外周の壁を組む。各辺でゲートが覆う範囲を開口として抜く。 */
+  private buildWalls(gates: Gate[]): void {
+    const mat = new THREE.MeshStandardMaterial({ color: '#3a4056', roughness: 0.9 });
+    const edges: Edge[] = ['top', 'bottom', 'left', 'right'];
+    for (const edge of edges) {
+      const n = edge === 'top' || edge === 'bottom' ? this.cols : this.rows;
+      // この辺のゲートが覆う区間（セル座標）を集めて結合。
+      const covered = gates
+        .filter((g) => g.edge === edge)
+        .map((g) => [g.start, g.end + 1] as [number, number])
+        .sort((a, b) => a[0] - b[0]);
+      // 開口以外（＝壁になる隙間）を求める。
+      let cursor = 0;
+      for (const [a, b] of covered) {
+        if (a > cursor) this.addWallSegment(edge, cursor, a, mat);
+        cursor = Math.max(cursor, b);
+      }
+      if (cursor < n) this.addWallSegment(edge, cursor, n, mat);
+    }
+    // 角の柱で四隅を閉じる。
+    const half = WALL_T / 2;
+    const cx = this.cols / 2;
+    const cz = this.rows / 2;
+    const cornerGeo = new THREE.BoxGeometry(WALL_T, WALL_H, WALL_T);
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+      const m = new THREE.Mesh(cornerGeo, mat);
+      m.position.set(sx * (cx + half), WALL_H / 2, sz * (cz + half));
+      m.castShadow = true;
+      m.receiveShadow = true;
+      this.boardGroup.add(m);
+    }
+  }
+
+  /** 辺 edge の [a, b]（セル座標）区間に壁セグメントを 1 本置く。 */
+  private addWallSegment(edge: Edge, a: number, b: number, mat: THREE.Material): void {
+    if (b - a <= 1e-6) return;
+    let geo: THREE.BoxGeometry;
+    let x: number;
+    let z: number;
+    if (edge === 'top' || edge === 'bottom') {
+      geo = new THREE.BoxGeometry(b - a, WALL_H, WALL_T);
+      x = (a + b) / 2 - this.cols / 2;
+      z = edge === 'top' ? -this.rows / 2 - WALL_T / 2 : this.rows / 2 + WALL_T / 2;
+    } else {
+      geo = new THREE.BoxGeometry(WALL_T, WALL_H, b - a);
+      z = (a + b) / 2 - this.rows / 2;
+      x = edge === 'left' ? -this.cols / 2 - WALL_T / 2 : this.cols / 2 + WALL_T / 2;
+    }
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, WALL_H / 2, z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    this.boardGroup.add(m);
   }
 
   private buildGate(g: Gate): void {
