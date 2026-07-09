@@ -154,6 +154,14 @@ export class Game {
     }
   }
 
+  /** ブロックが今そのまま出られる同色ゲートを返す（無ければ null）。 */
+  findExitGate(block: Block): Gate | null {
+    for (const gate of this.gates) {
+      if (gate.color === block.color && this.fitsGate(block, gate)) return gate;
+    }
+    return null;
+  }
+
   /** 全ブロックが消えていればクリア。 */
   isCleared(): boolean {
     return this.blocks.every((b) => b.removed);

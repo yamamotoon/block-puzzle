@@ -1,7 +1,7 @@
 import { Game } from './core/game';
 import { DragController } from './core/drag';
 import { LEVELS } from './core/levels';
-import { Canvas2DRenderer } from './render/canvas2d';
+import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
@@ -11,7 +11,7 @@ const levelLabel = document.getElementById('level-label') as HTMLElement;
 const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
 
-const renderer: Renderer = new Canvas2DRenderer(canvas);
+const renderer: Renderer = new ThreeRenderer(canvas);
 
 let levelIndex = 0;
 let game = new Game(LEVELS[levelIndex]);
