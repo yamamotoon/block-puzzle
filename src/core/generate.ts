@@ -216,11 +216,11 @@ export function pickRamp(pool: Candidate[], targetCount: number, minDifficulty =
  * - extra≥1（必ず「どかし」が要る）だけを対象＝作業レベルを排除
  * - 最難手数を cap で頭打ちにして急な跳ねを防ぐ
  */
-export function pickRampTargets(pool: Candidate[], count: number, cap = 18): Candidate[] {
+export function pickRampTargets(pool: Candidate[], count: number, cap = 18, minExtra = 1): Candidate[] {
   const seen = new Set<string>();
   const uniq: Candidate[] = [];
   for (const c of pool) {
-    if (c.extraMoves < 1 || c.minMoves > cap) continue;
+    if (c.extraMoves < minExtra || c.minMoves > cap) continue;
     const k = canonicalLevelKey(c.level);
     if (seen.has(k)) continue;
     seen.add(k);
@@ -251,6 +251,24 @@ export function pickRampTargets(pool: Candidate[], count: number, cap = 18): Can
   }
   chosen.sort((a, b) => a.minMoves - b.minMoves || a.expanded - b.expanded);
   return chosen;
+}
+
+/**
+ * やさしい導入レベル（少手数・どかし不要も可）を数個先頭に置き、
+ * 続けて extra≥1 の本編ランプを cap まで並べた、全 count 個の進行を作る。
+ */
+export function pickProgression(pool: Candidate[], count: number, cap = 18): Candidate[] {
+  const introCount = Math.max(2, Math.round(count * 0.2));
+  // 導入：手数が小さく（≤introCap）、どかし不要(extra=0)も許容。やさしい入り口。
+  const introCap = 4;
+  const intro = pickRampTargets(pool, introCount, introCap, 0);
+  const introKeys = new Set(intro.map((c) => canonicalLevelKey(c.level)));
+  // 本編：導入で使ったものを除き、extra≥1 で cap まで。
+  const rest = pool.filter((c) => !introKeys.has(canonicalLevelKey(c.level)));
+  const main = pickRampTargets(rest, count - intro.length, cap, 1);
+  const all = [...intro, ...main];
+  all.sort((a, b) => a.minMoves - b.minMoves || a.expanded - b.expanded);
+  return all;
 }
 
 /** seed から count 個生成を試み、解ける候補だけ返す。 */

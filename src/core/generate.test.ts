@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateLevel, generateBatch, makeRng, pickRamp, pickRampTargets } from './generate';
+import { generateLevel, generateBatch, makeRng, pickRamp, pickRampTargets, pickProgression } from './generate';
 import { validateLevel } from './validate';
 import { solve } from './solver';
 import { parseLevel, levelToText } from './level-format';
@@ -69,6 +69,24 @@ describe('pickRampTargets', () => {
       expect(ramp[i].minMoves).toBeLessThanOrEqual(16); // cap 以下
       if (i > 0) expect(ramp[i].minMoves).toBeGreaterThanOrEqual(ramp[i - 1].minMoves); // 昇順
     }
+  }, 30000);
+});
+
+describe('pickProgression', () => {
+  it('やさしい入口→cap までの昇順・重複なし進行', () => {
+    const pool = [
+      ...generateBatch(41, 300, { cols: 5, rows: 5, colors: 2, maxBlocksPerColor: 1, maxBlockSize: 3, minFreeCells: 8 }, 15000),
+      ...generateBatch(42, 300, { cols: 5, rows: 5, colors: 4, maxBlocksPerColor: 3, maxBlockSize: 3, minFreeCells: 4 }, 15000),
+    ];
+    const prog = pickProgression(pool, 12, 16);
+    expect(prog.length).toBeGreaterThan(4);
+    const keys = new Set(prog.map((c) => JSON.stringify(c.level)));
+    expect(keys.size).toBe(prog.length); // 重複なし
+    for (let i = 1; i < prog.length; i++) {
+      expect(prog[i].minMoves).toBeGreaterThanOrEqual(prog[i - 1].minMoves); // 昇順
+    }
+    expect(prog[0].minMoves).toBeLessThanOrEqual(prog[prog.length - 1].minMoves);
+    expect(prog[prog.length - 1].minMoves).toBeLessThanOrEqual(16); // cap
   }, 30000);
 });
 
