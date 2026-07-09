@@ -11,6 +11,30 @@ function key(c: number, r: number): string {
   return `${c},${r}`;
 }
 
+/** セル集合がゲートに接し、かつゲート幅に収まっているか（純関数。ソルバーと共有）。 */
+export function fitsGate(cells: Cell[], gate: Gate, cols: number, rows: number): boolean {
+  let minC = Infinity;
+  let maxC = -Infinity;
+  let minR = Infinity;
+  let maxR = -Infinity;
+  for (const cell of cells) {
+    if (cell.c < minC) minC = cell.c;
+    if (cell.c > maxC) maxC = cell.c;
+    if (cell.r < minR) minR = cell.r;
+    if (cell.r > maxR) maxR = cell.r;
+  }
+  switch (gate.edge) {
+    case 'top':
+      return minR === 0 && minC >= gate.start && maxC <= gate.end;
+    case 'bottom':
+      return maxR === rows - 1 && minC >= gate.start && maxC <= gate.end;
+    case 'left':
+      return minC === 0 && minR >= gate.start && maxR <= gate.end;
+    case 'right':
+      return maxC === cols - 1 && minR >= gate.start && maxR <= gate.end;
+  }
+}
+
 /**
  * ゲームのコアロジック。純粋な 2D グリッド演算のみを行い、描画・入力・DOM に依存しない。
  * 3D 化しても、この層は一切変更する必要がない。
@@ -132,26 +156,7 @@ export class Game {
 
   /** ブロックがゲートに接し、かつゲート幅に収まっているか。 */
   fitsGate(block: Block, gate: Gate): boolean {
-    let minC = Infinity;
-    let maxC = -Infinity;
-    let minR = Infinity;
-    let maxR = -Infinity;
-    for (const cell of block.cells) {
-      if (cell.c < minC) minC = cell.c;
-      if (cell.c > maxC) maxC = cell.c;
-      if (cell.r < minR) minR = cell.r;
-      if (cell.r > maxR) maxR = cell.r;
-    }
-    switch (gate.edge) {
-      case 'top':
-        return minR === 0 && minC >= gate.start && maxC <= gate.end;
-      case 'bottom':
-        return maxR === this.rows - 1 && minC >= gate.start && maxC <= gate.end;
-      case 'left':
-        return minC === 0 && minR >= gate.start && maxR <= gate.end;
-      case 'right':
-        return maxC === this.cols - 1 && minR >= gate.start && maxR <= gate.end;
-    }
+    return fitsGate(block.cells, gate, this.cols, this.rows);
   }
 
   /** ブロックが今そのまま出られる同色ゲートを返す（無ければ null）。 */

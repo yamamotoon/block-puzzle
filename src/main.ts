@@ -1,8 +1,10 @@
 import { Game } from './core/game';
 import { DragController } from './core/drag';
 import { LEVELS } from './core/levels';
+import { solve, type SolveMove } from './core/solver';
 import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
+import type { ColorId, Cell, Edge } from './core/types';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const app = document.getElementById('app') as HTMLElement;
@@ -10,6 +12,9 @@ const overlay = document.getElementById('overlay') as HTMLElement;
 const levelLabel = document.getElementById('level-label') as HTMLElement;
 const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
+const prevLvBtn = document.getElementById('prev-btn') as HTMLButtonElement;
+const nextLvBtn = document.getElementById('next-lv-btn') as HTMLButtonElement;
+const solveBtn = document.getElementById('solve-btn') as HTMLButtonElement;
 
 const renderer: Renderer = new ThreeRenderer(canvas);
 
@@ -28,14 +33,51 @@ interface ActiveEffect {
 }
 let effects: ActiveEffect[] = [];
 
+// ---- 正解再生 --------------------------------------------------------------
+const REPLAY_STEP = 450; // ms/手
+interface Replay {
+  moves: SolveMove[];
+  index: number;
+  nextTime: number;
+}
+let replay: Replay | null = null;
+
 function loadLevel(index: number): void {
   levelIndex = ((index % LEVELS.length) + LEVELS.length) % LEVELS.length;
   game = new Game(LEVELS[levelIndex]);
   cleared = false;
   drag = null;
   effects = [];
+  replay = null;
   overlay.classList.remove('show');
-  levelLabel.textContent = `Level ${levelIndex + 1}`;
+  levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVELS.length}`;
+}
+
+/** 現在のレベルを最初から並べ直し、正解手順の自動再生を開始する。 */
+function startReplay(): void {
+  loadLevel(levelIndex); // 初期状態に戻す
+  const res = solve(LEVELS[levelIndex]);
+  if (!res.solvable || !res.path) return;
+  replay = { moves: res.path, index: 0, nextTime: 0 };
+}
+
+/** 解答の 1 手を適用（ブロックを目標アンカーへ移動、ゲートに収まれば脱出）。 */
+function applySolveMove(move: SolveMove, now: number): void {
+  const b = game.blocks[move.block];
+  if (b.removed) return;
+  let minc = Infinity;
+  let minr = Infinity;
+  for (const c of b.cells) {
+    if (c.c < minc) minc = c.c;
+    if (c.r < minr) minr = c.r;
+  }
+  b.cells = b.cells.map((c) => ({ c: move.to.c + (c.c - minc), r: move.to.r + (c.r - minr) }));
+  const gate = game.findExitGate(b);
+  if (gate) {
+    const snap = b.cells.map((c) => ({ ...c }));
+    b.removed = true;
+    pushExitEffect(snap, b.color, gate.edge, now);
+  }
 }
 
 function resize(): void {
@@ -49,7 +91,7 @@ function canvasPoint(e: PointerEvent): { x: number; y: number } {
 }
 
 function onPointerDown(e: PointerEvent): void {
-  if (cleared) return;
+  if (cleared || replay) return;
   const p = canvasPoint(e);
   const cell = renderer.pixelToCell(p.x, p.y);
   const block = game.blockAt(cell.c, cell.r);
@@ -73,20 +115,17 @@ function onPointerUp(e: PointerEvent): void {
   endDrag(e.pointerId);
 }
 
+function pushExitEffect(cells: Cell[], color: ColorId, edge: Edge, now: number): void {
+  effects.push({
+    start: now,
+    effect: { cells, color, edge, baseOffC: 0, baseOffR: 0, progress: 0 },
+  });
+}
+
 function spawnExit(d: DragController, now: number): void {
   if (!d.exitEdge) return;
   const s = d.snapshot();
-  effects.push({
-    start: now,
-    effect: {
-      cells: s.cells,
-      color: s.color,
-      edge: d.exitEdge,
-      baseOffC: s.offC,
-      baseOffR: s.offR,
-      progress: 0,
-    },
-  });
+  pushExitEffect(s.cells, s.color, d.exitEdge, now);
 }
 
 function endDrag(pointerId: number): void {
@@ -97,6 +136,18 @@ function endDrag(pointerId: number): void {
 }
 
 function frame(ts: number): void {
+  // 正解再生：一定間隔で 1 手ずつ適用
+  if (replay && ts >= replay.nextTime) {
+    if (replay.index < replay.moves.length) {
+      applySolveMove(replay.moves[replay.index], ts);
+      replay.index++;
+      replay.nextTime = ts + REPLAY_STEP;
+    } else {
+      replay = null;
+      if (game.isCleared()) cleared = true;
+    }
+  }
+
   // 脱出演出を進め、終わったものは除去
   effects = effects.filter((a) => {
     a.effect.progress = Math.min(1, (ts - a.start) / EXIT_DURATION);
@@ -123,6 +174,9 @@ canvas.addEventListener('pointercancel', onPointerUp);
 window.addEventListener('resize', resize);
 resetBtn.addEventListener('click', () => loadLevel(levelIndex));
 nextBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
+prevLvBtn.addEventListener('click', () => loadLevel(levelIndex - 1));
+nextLvBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
+solveBtn.addEventListener('click', () => startReplay());
 
 resize();
 requestAnimationFrame(frame);
