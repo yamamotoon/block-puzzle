@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateLevel, generateBatch, makeRng, pickRamp } from './generate';
+import { generateLevel, generateBatch, makeRng, pickRamp, pickRampTargets } from './generate';
 import { validateLevel } from './validate';
 import { solve } from './solver';
 import { parseLevel, levelToText } from './level-format';
@@ -54,6 +54,21 @@ describe('pickRamp', () => {
     const keys = new Set(ramp.map((c) => JSON.stringify(c.level)));
     expect(keys.size).toBe(ramp.length);
     for (const c of ramp) expect(c.minMoves).toBeGreaterThanOrEqual(3);
+  }, 30000);
+});
+
+describe('pickRampTargets', () => {
+  it('extra≥1・cap以下・昇順・重複なしの滑らかなランプ', () => {
+    const pool = generateBatch(5, 300, { cols: 5, rows: 5, colors: 4, maxBlocksPerColor: 3, maxBlockSize: 3, minFreeCells: 4 }, 15000);
+    const ramp = pickRampTargets(pool, 8, 16);
+    expect(ramp.length).toBeGreaterThan(1);
+    const keys = new Set(ramp.map((c) => JSON.stringify(c.level)));
+    expect(keys.size).toBe(ramp.length); // 重複なし
+    for (let i = 0; i < ramp.length; i++) {
+      expect(ramp[i].extraMoves).toBeGreaterThanOrEqual(1); // 必ず「どかし」あり
+      expect(ramp[i].minMoves).toBeLessThanOrEqual(16); // cap 以下
+      if (i > 0) expect(ramp[i].minMoves).toBeGreaterThanOrEqual(ramp[i - 1].minMoves); // 昇順
+    }
   }, 30000);
 });
 

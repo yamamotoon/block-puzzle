@@ -39,9 +39,17 @@ export interface GenOptions {
   colors: number; // 使う色数（=辺数、最大4）
   maxBlocksPerColor: number;
   maxBlockSize: number;
+  minFreeCells: number; // 盤面に必ず残す空きマス数（過密＝理不尽を防ぐ）
 }
 
-const DEFAULTS: GenOptions = { cols: 6, rows: 6, colors: 4, maxBlocksPerColor: 2, maxBlockSize: 4 };
+const DEFAULTS: GenOptions = {
+  cols: 6,
+  rows: 6,
+  colors: 4,
+  maxBlocksPerColor: 2,
+  maxBlockSize: 4,
+  minFreeCells: 3,
+};
 
 /** 1 レベル生成を試みる。作れなければ null。 */
 export function generateLevel(rng: () => number, opts: Partial<GenOptions> = {}): Level | null {
@@ -99,6 +107,8 @@ export function generateLevel(rng: () => number, opts: Partial<GenOptions> = {})
   }
 
   if (blocks.length === 0) return null;
+  const filled = blocks.reduce((s, b) => s + b.cells.length, 0);
+  if (cols * rows - filled < o.minFreeCells) return null; // 過密は不採用
   const level: Level = { cols, rows, blocks, gates };
   if (validateLevel(level).errors.length > 0) return null;
   return level;
@@ -199,6 +209,48 @@ export function pickRamp(pool: Candidate[], targetCount: number, minDifficulty =
     if (out.length === 0 || out[out.length - 1] !== uniq[idx]) out.push(uniq[idx]);
   }
   return out;
+}
+
+/**
+ * 目標手数を等間隔に置き、各目標に最も近い候補を選んで滑らかなランプを作る。
+ * - extra≥1（必ず「どかし」が要る）だけを対象＝作業レベルを排除
+ * - 最難手数を cap で頭打ちにして急な跳ねを防ぐ
+ */
+export function pickRampTargets(pool: Candidate[], count: number, cap = 18): Candidate[] {
+  const seen = new Set<string>();
+  const uniq: Candidate[] = [];
+  for (const c of pool) {
+    if (c.extraMoves < 1 || c.minMoves > cap) continue;
+    const k = canonicalLevelKey(c.level);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(c);
+  }
+  if (uniq.length === 0) return [];
+  uniq.sort((a, b) => a.minMoves - b.minMoves || a.expanded - b.expanded);
+
+  const lo = uniq[0].minMoves;
+  const hi = uniq[uniq.length - 1].minMoves;
+  const used = new Set<number>();
+  const chosen: Candidate[] = [];
+  for (let i = 0; i < count; i++) {
+    const target = count === 1 ? lo : lo + ((hi - lo) * i) / (count - 1);
+    let best = -1;
+    let bestDist = Infinity;
+    for (let j = 0; j < uniq.length; j++) {
+      if (used.has(j)) continue;
+      const d = Math.abs(uniq[j].minMoves - target);
+      if (d < bestDist) {
+        bestDist = d;
+        best = j;
+      }
+    }
+    if (best < 0) break;
+    used.add(best);
+    chosen.push(uniq[best]);
+  }
+  chosen.sort((a, b) => a.minMoves - b.minMoves || a.expanded - b.expanded);
+  return chosen;
 }
 
 /** seed から count 個生成を試み、解ける候補だけ返す。 */

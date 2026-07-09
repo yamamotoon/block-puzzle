@@ -1,182 +1,181 @@
 import type { Level } from './types';
 import { parseLevel } from './level-format';
 
-// 自動生成（generate.ts / seed固定）の難易度ランプ。易→難で並ぶ。
-// 全レベルはソルバーで解けることを検証済み（solver.test / validate.test で担保）。
+// 自動生成（generate.ts / seed固定）の難易度ランプ。易→難でなめらかに上がる。
+// 全レベル: 解ける・extra≥1（要どかし）・最難18手・空きマス≥4 を満たす。
+// solver.test / validate.test / replay.test で健全性を担保。
 
 export const LEVELS: Level[] = [
-  // Level 1 — minMoves=4, blocks=4, extra=0, board=6x6
+  // Level 1 — minMoves=4, blocks=3, extra=1, board=5x5
   parseLevel(`
 grid:
-..bbb.
-r...b.
-..o...
-......
-......
-.....p
+...bb
+...by
+..g.y
+..g..
+..g..
 gates:
-right 3-5 red
-top 1-3 orange
-left 2 purple
-bottom 3-5 blue
+right 3-4 blue
+left 0-2 yellow
+top 3 green
 `),
-  // Level 2 — minMoves=6, blocks=6, extra=0, board=6x6
+  // Level 2 — minMoves=5, blocks=4, extra=1, board=6x6
   parseLevel(`
 grid:
-g.p...
-......
-..gg.b
-.y..bb
-.y.g..
-......
-gates:
-top 3-5 purple
-left 2-4 blue
-bottom 0-1 yellow
-right 4 green
-`),
-  // Level 3 — minMoves=7, blocks=7, extra=0, board=6x6
-  parseLevel(`
-grid:
-o.....
+.gg..o
+.gg..o
+y...oo
+y....b
 .....b
-.p.p..
-.ypp..
-...o.o
 ......
 gates:
-top 2-4 purple
-left 0 blue
-bottom 3-4 orange
-right 1 yellow
+left 1-3 green
+right 0-1 blue
+top 1 yellow
+bottom 1-3 orange
 `),
-  // Level 4 — minMoves=7, blocks=6, extra=1, board=5x5
+  // Level 3 — minMoves=7, blocks=6, extra=1, board=6x6
   parseLevel(`
 grid:
-.....
-bB..p
-bb..p
-...gg
-rr.gp
-gates:
-bottom 2-3 red
-top 2-3 purple
-right 0-2 blue
-left 3-4 green
-`),
-  // Level 5 — minMoves=8, blocks=8, extra=0, board=6x6
-  parseLevel(`
-grid:
-pbbb..
-p.o...
-pPPbb.
-.pPyy.
-.p.y..
-..oo..
-gates:
-bottom 0-1 yellow
-top 4-5 purple
-right 0 blue
-left 3-5 orange
-`),
-  // Level 6 — minMoves=8, blocks=7, extra=1, board=5x5
-  parseLevel(`
-grid:
-oo...
-p..y.
-p.yyp
-py..p
-.pppg
-gates:
-right 2-3 yellow
-top 1-2 orange
-left 2-4 purple
-bottom 2 green
-`),
-  // Level 7 — minMoves=9, blocks=8, extra=1, board=5x5
-  parseLevel(`
-grid:
-.PppP
-gP.g.
-gg.gg
-.GGbr
-..bb.
-gates:
-top 2-4 green
-bottom 1 red
-right 1-3 purple
-left 0-2 blue
-`),
-  // Level 8 — minMoves=9, blocks=7, extra=2, board=5x5
-  parseLevel(`
-grid:
-yggg.
-yyoo.
-.BbbB
-..b.B
-..o.B
-gates:
-top 0-2 blue
-left 1-3 yellow
-right 1 orange
-bottom 1-3 green
-`),
-  // Level 9 — minMoves=10, blocks=8, extra=2, board=5x5
-  parseLevel(`
-grid:
-...oB
-..ooB
-ooOOb
-p...b
-p.p.y
-gates:
-left 1 yellow
-right 2-3 orange
-top 1-2 purple
-bottom 2 blue
-`),
-  // Level 10 — minMoves=11, blocks=9, extra=2, board=6x6
-  parseLevel(`
-grid:
+..yy..
+bp.yy.
+ppp..y
 ......
-oo...p
-oyy.pp
-oyy.oo
-OOpp..
-OPpyb.
+..r...
+.....b
 gates:
-top 4-5 orange
-right 2 blue
-left 1-3 yellow
-bottom 4-5 purple
+left 3-5 yellow
+right 0-1 blue
+bottom 2-4 purple
+top 2 red
 `),
-  // Level 11 — minMoves=12, blocks=10, extra=2, board=6x6
+  // Level 4 — minMoves=8, blocks=7, extra=1, board=6x6
   parseLevel(`
 grid:
-yyRyy.
-yrR...
-yrR..b
-py.pp.
-yy....
-.y.pp.
+GGggoo
+G..GG.
+...G..
+.b....
+..o...
+.oo..y
 gates:
-top 4-5 red
-left 0-1 purple
-right 3 blue
-bottom 3-5 yellow
+bottom 0-1 green
+right 0-2 yellow
+left 0-2 orange
+top 4 blue
 `),
-  // Level 12 — minMoves=31, blocks=11, extra=20, board=5x5
+  // Level 5 — minMoves=9, blocks=8, extra=1, board=6x6
   parseLevel(`
 grid:
-..gbb
-bggbg
-pprgg
-rbbpp
-rpprp
+gggGG.
+..pppr
+.Yyprr
+.y..g.
+......
+......
 gates:
+top 4-5 yellow
+left 3-4 red
 bottom 2-4 green
-left 2-3 blue
-top 0-1 red
-right 1-2 purple
+right 4-5 purple
+`),
+  // Level 6 — minMoves=10, blocks=9, extra=1, board=6x6
+  parseLevel(`
+grid:
+....o.
+....or
+.y....
+ryo...
+rrYyyo
+rb..y.
+gates:
+right 3-5 yellow
+left 3 blue
+top 4-5 red
+bottom 2 orange
+`),
+  // Level 7 — minMoves=12, blocks=11, extra=1, board=5x5
+  parseLevel(`
+grid:
+oyyyg
+Y..og
+yyyoG
+.YoGG
+g.ogg
+gates:
+left 3 yellow
+bottom 1-3 green
+right 0-2 orange
+`),
+  // Level 8 — minMoves=13, blocks=12, extra=1, board=6x6
+  parseLevel(`
+grid:
+RRRr..
+RRrrbb
+GRR.o.
+g.o...
+.og...
+bbg.bb
+gates:
+left 2-4 red
+bottom 0 orange
+top 5 green
+right 4 blue
+`),
+  // Level 9 — minMoves=14, blocks=12, extra=2, board=6x6
+  parseLevel(`
+grid:
+booygg
+ggbboo
+yggb..
+yyGG..
+.GGybb
+ooyybb
+gates:
+right 3 orange
+bottom 4-5 yellow
+left 4-5 green
+top 3-5 blue
+`),
+  // Level 10 — minMoves=15, blocks=11, extra=4, board=5x5
+  parseLevel(`
+grid:
+gRRBb
+grRB.
+gG.bb
+GGgg.
+r.rrr
+gates:
+left 1-3 red
+top 2-4 green
+bottom 0-1 blue
+`),
+  // Level 11 — minMoves=17, blocks=9, extra=8, board=5x5
+  parseLevel(`
+grid:
+.Roo.
+rRoG.
+.PgGG
+oPPpg
+oo...
+gates:
+top 0-1 green
+left 0-1 purple
+right 1-3 orange
+bottom 3-4 red
+`),
+  // Level 12 — minMoves=18, blocks=9, extra=9, board=5x5
+  parseLevel(`
+grid:
+.B.bp
+bbyby
+byyby
+YY.pp
+.Yggg
+gates:
+left 2 purple
+top 0-1 yellow
+bottom 1-3 green
+right 1-3 blue
 `),
 ];
