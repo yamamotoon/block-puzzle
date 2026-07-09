@@ -19,6 +19,8 @@ const nextLvBtn = document.getElementById('next-lv-btn') as HTMLButtonElement;
 const solveBtn = document.getElementById('solve-btn') as HTMLButtonElement;
 const levelsBtn = document.getElementById('levels-btn') as HTMLButtonElement;
 const muteBtn = document.getElementById('mute-btn') as HTMLButtonElement;
+const menuBtn = document.getElementById('menu-btn') as HTMLButtonElement;
+const menu = document.getElementById('menu') as HTMLElement;
 const levelSelect = document.getElementById('level-select') as HTMLElement;
 const lsGrid = document.getElementById('ls-grid') as HTMLElement;
 const lsClose = document.getElementById('ls-close') as HTMLButtonElement;
@@ -273,6 +275,18 @@ muteBtn.addEventListener('click', () => {
   sfx.setMuted(!sfx.muted);
   if (!sfx.muted) sfx.resume();
   updateMuteBtn();
+});
+
+// メニュー（ドロップダウン）の開閉
+menuBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  menu.classList.toggle('show');
+});
+menu.addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).tagName === 'BUTTON') menu.classList.remove('show');
+});
+document.addEventListener('click', (e) => {
+  if (!menu.contains(e.target as Node) && e.target !== menuBtn) menu.classList.remove('show');
 });
 
 updateMuteBtn();
