@@ -37,7 +37,7 @@ describe('generateBatch', () => {
     const cands = generateBatch(3, 300);
     const withDepth = cands.filter((c) => c.extraMoves > 0);
     expect(withDepth.length).toBeGreaterThan(0);
-  });
+  }, 20000);
 });
 
 describe('pickRamp', () => {

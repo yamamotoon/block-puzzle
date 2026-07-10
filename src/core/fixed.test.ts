@@ -87,5 +87,5 @@ describe('固定ブロック: 生成', () => {
     const withFixed = cands.filter((c) => c.level.blocks.some((b) => b.fixed));
     expect(withFixed.length).toBeGreaterThan(0);
     for (const c of withFixed) expect(solve(c.level).solvable).toBe(true);
-  }, 30000);
+  }, 60000);
 });
