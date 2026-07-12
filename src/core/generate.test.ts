@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { generateLevel, generateBatch, makeRng, pickRamp, pickRampTargets, pickProgression } from './generate';
+import { generateLevel, generateBatch, makeRng, pickRamp, pickRampTargets, pickProgression, fillVariants, canonicalLevelKey } from './generate';
 import { validateLevel } from './validate';
 import { solve } from './solver';
 import { parseLevel, levelToText } from './level-format';
@@ -87,6 +87,26 @@ describe('pickProgression', () => {
     }
     expect(prog[0].minMoves).toBeLessThanOrEqual(prog[prog.length - 1].minMoves);
     expect(prog[prog.length - 1].minMoves).toBeLessThanOrEqual(16); // cap
+  }, 30000);
+});
+
+describe('fillVariants', () => {
+  it('各アンカーに同じ手数のバリエーションを束ね、重複なく返す', () => {
+    const pool = generateBatch(9, 400, { cols: 5, rows: 5, colors: 4, maxBlocksPerColor: 3, maxBlockSize: 3, minFreeCells: 4 }, 15000);
+    const anchors = pickProgression(pool, 8, 16);
+    const slots = fillVariants(pool, anchors, 3);
+
+    expect(slots.length).toBe(anchors.length);
+    const allKeys: string[] = [];
+    slots.forEach((variants, i) => {
+      expect(variants.length).toBeGreaterThanOrEqual(1); // 最低アンカー自身
+      expect(variants.length).toBeLessThanOrEqual(3);
+      for (const v of variants) {
+        expect(v.minMoves).toBe(anchors[i].minMoves); // 同一スロット内は手数が一致
+        allKeys.push(canonicalLevelKey(v.level));
+      }
+    });
+    expect(new Set(allKeys).size).toBe(allKeys.length); // スロットをまたいで盤面の重複なし
   }, 30000);
 });
 

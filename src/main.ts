@@ -1,10 +1,10 @@
 import { Game } from './core/game';
 import { DragController } from './core/drag';
-import { LEVELS } from './core/levels';
+import { LEVEL_SLOTS } from './core/levels';
 import { solve, type SolveMove } from './core/solver';
 import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
-import type { ColorId, Cell, Edge } from './core/types';
+import type { ColorId, Cell, Edge, Level } from './core/types';
 import { sfx } from './platform/audio';
 import { recordResult, allResults } from './platform/storage';
 
@@ -29,8 +29,30 @@ const clearMoves = document.getElementById('clear-moves') as HTMLElement;
 
 const renderer: Renderer = new ThreeRenderer(canvas);
 
+/** 指定スロットからバリエーションを1枚ランダムに選ぶ（インデックスも返す。ログ用）。 */
+function pickVariant(slotIndex: number): { level: Level; variantIndex: number; variantCount: number } {
+  const variants = LEVEL_SLOTS[slotIndex];
+  const variantIndex = Math.floor(Math.random() * variants.length);
+  return { level: variants[variantIndex], variantIndex, variantCount: variants.length };
+}
+
+/** ステージ遷移をコンソールに出力する（動作確認用。難易度カーブや色数の妥当性もログだけで追える）。 */
+function logStageTransition(action: 'enter' | 'reset', level: Level, variantIndex: number, variantCount: number): void {
+  const movable = level.blocks.filter((b) => !b.fixed);
+  const fixedCount = level.blocks.length - movable.length;
+  const colorCount = new Set(movable.map((b) => b.color)).size;
+  const minMoves = solve(level).minMoves;
+  console.log(
+    `[level] ${action} slot=${levelIndex + 1}/${LEVEL_SLOTS.length} variant=${variantIndex + 1}/${variantCount} ` +
+      `board=${level.cols}x${level.rows} fixed=${fixedCount} blocks=${movable.length} colors=${colorCount} minMoves=${minMoves}`,
+  );
+}
+
 let levelIndex = 0;
-let game = new Game(LEVELS[levelIndex]);
+let currentVariantIndex = 0;
+let currentVariantCount = 1;
+let currentLevel: Level = LEVEL_SLOTS[levelIndex][0];
+let game = new Game(currentLevel);
 let cleared = false;
 
 // ---- 手数・評価 ------------------------------------------------------------
@@ -59,24 +81,41 @@ interface Replay {
 }
 let replay: Replay | null = null;
 
-function loadLevel(index: number): void {
-  levelIndex = ((index % LEVELS.length) + LEVELS.length) % LEVELS.length;
-  game = new Game(LEVELS[levelIndex]);
+/** 現在の currentLevel で盤面を初期状態に組み直す（バリエーションは再抽選しない）。 */
+function startLevel(): void {
+  game = new Game(currentLevel);
   cleared = false;
   drag = null;
   effects = [];
   replay = null;
   movesUsed = 0;
   usedSolve = false;
-  currentMinMoves = solve(LEVELS[levelIndex]).minMoves;
+  currentMinMoves = solve(currentLevel).minMoves;
   overlay.classList.remove('show');
-  levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVELS.length}`;
+  levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVEL_SLOTS.length}`;
+}
+
+/** 指定スロットへ切り替える（バリエーションを新たに抽選する）。 */
+function enterLevel(index: number): void {
+  levelIndex = ((index % LEVEL_SLOTS.length) + LEVEL_SLOTS.length) % LEVEL_SLOTS.length;
+  const picked = pickVariant(levelIndex);
+  currentLevel = picked.level;
+  currentVariantIndex = picked.variantIndex;
+  currentVariantCount = picked.variantCount;
+  logStageTransition('enter', currentLevel, currentVariantIndex, currentVariantCount);
+  startLevel();
+}
+
+/** 現在のレベルをリセットする（同じバリエーションのままやり直す）。 */
+function resetLevel(): void {
+  logStageTransition('reset', currentLevel, currentVariantIndex, currentVariantCount);
+  startLevel();
 }
 
 /** 現在のレベルを最初から並べ直し、正解手順の自動再生を開始する。 */
 function startReplay(): void {
-  loadLevel(levelIndex); // 初期状態に戻す
-  const res = solve(LEVELS[levelIndex]);
+  resetLevel(); // 同じバリエーションのまま初期状態に戻す
+  const res = solve(currentLevel);
   if (!res.solvable || !res.path) return;
   usedSolve = true;
   replay = { moves: res.path, index: 0, nextTime: 0 };
@@ -233,7 +272,7 @@ function showClear(): void {
 function buildLevelSelect(): void {
   const results = allResults();
   lsGrid.innerHTML = '';
-  for (let i = 0; i < LEVELS.length; i++) {
+  for (let i = 0; i < LEVEL_SLOTS.length; i++) {
     const btn = document.createElement('button');
     btn.className = 'ls-cell';
     const r = results[i];
@@ -246,7 +285,7 @@ function buildLevelSelect(): void {
     btn.append(num, s);
     btn.addEventListener('click', () => {
       levelSelect.classList.remove('show');
-      loadLevel(i);
+      enterLevel(i);
     });
     lsGrid.append(btn);
   }
@@ -261,10 +300,10 @@ canvas.addEventListener('pointermove', onPointerMove);
 canvas.addEventListener('pointerup', onPointerUp);
 canvas.addEventListener('pointercancel', onPointerUp);
 window.addEventListener('resize', resize);
-resetBtn.addEventListener('click', () => loadLevel(levelIndex));
-nextBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
-prevLvBtn.addEventListener('click', () => loadLevel(levelIndex - 1));
-nextLvBtn.addEventListener('click', () => loadLevel(levelIndex + 1));
+resetBtn.addEventListener('click', () => resetLevel());
+nextBtn.addEventListener('click', () => enterLevel(levelIndex + 1));
+prevLvBtn.addEventListener('click', () => enterLevel(levelIndex - 1));
+nextLvBtn.addEventListener('click', () => enterLevel(levelIndex + 1));
 solveBtn.addEventListener('click', () => startReplay());
 levelsBtn.addEventListener('click', () => {
   buildLevelSelect();
@@ -290,6 +329,6 @@ document.addEventListener('click', (e) => {
 });
 
 updateMuteBtn();
-loadLevel(0);
+enterLevel(0);
 resize();
 requestAnimationFrame(frame);

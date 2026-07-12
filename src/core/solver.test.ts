@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { solve } from './solver';
-import { LEVELS } from './levels';
+import { LEVEL_SLOTS } from './levels';
 import type { Level } from './types';
 
 describe('solve 基本', () => {
@@ -69,8 +69,12 @@ describe('solve 基本', () => {
   });
 });
 
-describe('同梱レベルは全て解ける', () => {
-  it.each(LEVELS.map((lv, i) => [i + 1, lv] as const))('Level %i が解ける', (_i, lv) => {
+const allBoards = LEVEL_SLOTS.flatMap((variants, slot) =>
+  variants.map((lv, vi) => [`${slot + 1}-${vi + 1}`, lv] as const),
+);
+
+describe('同梱レベルは全バリエーションが解ける', () => {
+  it.each(allBoards)('Level %s が解ける', (_label, lv) => {
     const res = solve(lv);
     expect(res.exceeded).toBe(false);
     expect(res.solvable).toBe(true);

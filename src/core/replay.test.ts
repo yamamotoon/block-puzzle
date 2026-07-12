@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from './game';
 import { solve } from './solver';
-import { LEVELS } from './levels';
+import { LEVEL_SLOTS } from './levels';
 import type { Level } from './types';
 
 // ソルバーの解答手順を、実際にブロックを動かして最後まで再生し、
@@ -42,8 +42,12 @@ function replayClears(level: Level): { cleared: boolean; alwaysLegal: boolean; m
   return { cleared: g.isCleared(), alwaysLegal, moves: res.path.length };
 }
 
-describe('解答手順の再生で全レベルがクリアできる', () => {
-  it.each(LEVELS.map((lv, i) => [i + 1, lv] as const))('Level %i の解答が盤面を空にする', (_i, lv) => {
+const allBoards = LEVEL_SLOTS.flatMap((variants, slot) =>
+  variants.map((lv, vi) => [`${slot + 1}-${vi + 1}`, lv] as const),
+);
+
+describe('解答手順の再生で全レベル・全バリエーションがクリアできる', () => {
+  it.each(allBoards)('Level %s の解答が盤面を空にする', (_label, lv) => {
     const r = replayClears(lv);
     expect(r.alwaysLegal).toBe(true);
     expect(r.cleared).toBe(true);

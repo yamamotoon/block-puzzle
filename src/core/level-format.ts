@@ -19,24 +19,22 @@ import type { Level, BlockDef, Cell, ColorId, Edge, Gate } from './types';
 
 const FIXED_CHAR = '#';
 
-const COLOR_CHARS: Record<string, ColorId> = {
-  r: 'red', R: 'red',
-  b: 'blue', B: 'blue',
-  g: 'green', G: 'green',
-  y: 'yellow', Y: 'yellow',
-  p: 'purple', P: 'purple',
-  o: 'orange', O: 'orange',
+// 色 → 判別用文字の候補リスト（4つ）。隣接する同色の別ブロックが複数あっても
+// 互いに異なる文字を割り当てられるよう、色ごとに2文字（旧仕様）では足りないケースに備える。
+const CHARS_BY_COLOR: Record<ColorId, readonly string[]> = {
+  red: ['r', 'R', 'c', 'C'],
+  blue: ['b', 'B', 'd', 'D'],
+  green: ['g', 'G', 'e', 'E'],
+  yellow: ['y', 'Y', 'f', 'F'],
+  purple: ['p', 'P', 'h', 'H'],
+  orange: ['o', 'O', 'i', 'I'],
 };
 
-// 色 → [小文字, 大文字]。隣接する同色別ブロックは 2 文字目で分けて表現する。
-const CHARS_BY_COLOR: Record<ColorId, [string, string]> = {
-  red: ['r', 'R'],
-  blue: ['b', 'B'],
-  green: ['g', 'G'],
-  yellow: ['y', 'Y'],
-  purple: ['p', 'P'],
-  orange: ['o', 'O'],
-};
+const COLOR_CHARS: Record<string, ColorId> = Object.fromEntries(
+  (Object.entries(CHARS_BY_COLOR) as [ColorId, readonly string[]][]).flatMap(([color, chars]) =>
+    chars.map((ch) => [ch, color] as const),
+  ),
+);
 
 const EDGES: readonly Edge[] = ['top', 'bottom', 'left', 'right'];
 const COLOR_NAMES: readonly ColorId[] = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
@@ -111,9 +109,8 @@ export function levelToText(level: Level): string {
       for (const cell of b.cells) grid[cell.r][cell.c] = FIXED_CHAR;
       continue;
     }
-    const [lo, hi] = CHARS_BY_COLOR[b.color];
-    // 隣接する同色別ブロックと文字が衝突しないよう小文字/大文字を選ぶ。
-    let ch = lo;
+    // 隣接する同色別ブロックと文字が衝突しないよう、候補から空いている文字を選ぶ
+    // （3つ以上の同色ブロックが互いに隣接するケースもあるため、2文字固定では足りない）。
     const conflict = (candidate: string): boolean =>
       b.cells.some((cell) =>
         [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dc, dr]) => {
@@ -124,7 +121,10 @@ export function levelToText(level: Level): string {
           );
         }),
       );
-    if (conflict(lo)) ch = hi;
+    const ch = CHARS_BY_COLOR[b.color].find((candidate) => !conflict(candidate));
+    if (!ch) {
+      throw new Error(`levelToText: 色 ${b.color} の判別文字が不足しています（隣接する同色ブロックが多すぎます）`);
+    }
     for (const cell of b.cells) grid[cell.r][cell.c] = ch;
   }
 

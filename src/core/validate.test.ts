@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { validateLevel } from './validate';
-import { LEVELS } from './levels';
+import { LEVEL_SLOTS } from './levels';
+import { solve } from './solver';
+import { canonicalLevelKey } from './generate';
 import type { Level } from './types';
 
 describe('validateLevel エラー検出', () => {
@@ -56,11 +58,48 @@ describe('validateLevel 警告', () => {
 });
 
 describe('同梱レベルは健全', () => {
-  it('全レベルにエラーが無く、初期脱出可能ブロックも無い', () => {
-    for (const lv of LEVELS) {
-      const { errors, warnings } = validateLevel(lv);
-      expect(errors).toEqual([]);
-      expect(warnings.filter((w) => w.includes('初期位置'))).toEqual([]);
+  it('全スロット・全バリエーションにエラーが無く、初期脱出可能ブロックも無い', () => {
+    for (const variants of LEVEL_SLOTS) {
+      for (const lv of variants) {
+        const { errors, warnings } = validateLevel(lv);
+        expect(errors).toEqual([]);
+        expect(warnings.filter((w) => w.includes('初期位置'))).toEqual([]);
+      }
+    }
+  });
+});
+
+describe('LEVEL_SLOTS のデータ品質', () => {
+  it('各スロットに最低1つのバリエーションがある', () => {
+    for (const variants of LEVEL_SLOTS) {
+      expect(variants.length).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it('同一スロット内の全バリエーションは最小手数が一致する（★判定の公平性）', () => {
+    for (const variants of LEVEL_SLOTS) {
+      const moves = variants.map((lv) => solve(lv).minMoves);
+      const first = moves[0];
+      for (const m of moves) expect(m).toBe(first);
+    }
+  }, 30000);
+
+  it('全スロット・全バリエーションを通して盤面の重複が無い', () => {
+    const keys = LEVEL_SLOTS.flatMap((variants) => variants.map((lv) => canonicalLevelKey(lv)));
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('前半(World1)は固定ブロックが無く、後半(World2)は固定ブロックがある', () => {
+    const half = LEVEL_SLOTS.length / 2;
+    for (let i = 0; i < half; i++) {
+      for (const lv of LEVEL_SLOTS[i]) {
+        expect(lv.blocks.some((b) => b.fixed)).toBe(false);
+      }
+    }
+    for (let i = half; i < LEVEL_SLOTS.length; i++) {
+      for (const lv of LEVEL_SLOTS[i]) {
+        expect(lv.blocks.some((b) => b.fixed)).toBe(true);
+      }
     }
   });
 });

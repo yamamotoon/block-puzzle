@@ -284,6 +284,33 @@ export function pickProgression(pool: Candidate[], count: number, cap = 18): Can
   return all;
 }
 
+/**
+ * アンカー候補（難易度カーブ用に選ばれた代表候補）ごとに、同じ minMoves を持つ
+ * 別候補をプールから追加収集し、variantsPerSlot 個までのバリエーション束にする。
+ * 同じ盤面（canonicalLevelKey）はスロットをまたいで重複させない。
+ * プールに同じ minMoves の候補が足りない場合は集まった分だけ返す（最低1個＝アンカー自身）。
+ */
+export function fillVariants(
+  pool: Candidate[],
+  anchors: Candidate[],
+  variantsPerSlot: number,
+): Candidate[][] {
+  // 他スロットのアンカー自身を、別スロットのバリエーションとして誤って拾わないよう先に予約する。
+  const used = new Set<string>(anchors.map((a) => canonicalLevelKey(a.level)));
+  return anchors.map((anchor) => {
+    const variants: Candidate[] = [anchor];
+    for (const c of pool) {
+      if (variants.length >= variantsPerSlot) break;
+      if (c.minMoves !== anchor.minMoves) continue;
+      const k = canonicalLevelKey(c.level);
+      if (used.has(k)) continue;
+      used.add(k);
+      variants.push(c);
+    }
+    return variants;
+  });
+}
+
 /** seed から count 個生成を試み、解ける候補だけ返す。 */
 export function generateBatch(
   seed: number,

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseLevel } from './level-format';
+import { parseLevel, levelToText } from './level-format';
+import type { Level } from './types';
 
 describe('parseLevel', () => {
   it('グリッドサイズ・ブロック・ゲートを解釈する', () => {
@@ -52,6 +53,27 @@ gates:
 left 0 blue
 `);
     expect(lv.gates[0]).toEqual({ edge: 'left', start: 0, end: 0, color: 'blue' });
+  });
+
+  it('levelToText: 3つ以上の同色ブロックが入り組んで隣接していても誤って結合しない', () => {
+    // A=(0,0), E=(1,2), D=(1,1), C=(1,0) の4つの独立した赤1マスブロック。
+    // C は A にも D にも隣接しており、2文字（小文字/大文字）だけでは
+    // 「A=r, D=R」の両方と衝突しない文字を選べず、C が D と同じ文字になって
+    // 誤結合していたバグの再現ケース。
+    const lv: Level = {
+      cols: 3,
+      rows: 3,
+      blocks: [
+        { id: 'a', color: 'red', cells: [{ c: 0, r: 0 }] },
+        { id: 'e', color: 'red', cells: [{ c: 1, r: 2 }] },
+        { id: 'd', color: 'red', cells: [{ c: 1, r: 1 }] },
+        { id: 'c', color: 'red', cells: [{ c: 1, r: 0 }] },
+      ],
+      gates: [{ edge: 'top', start: 0, end: 2, color: 'red' }],
+    };
+    const round = parseLevel(levelToText(lv));
+    expect(round.blocks).toHaveLength(4);
+    expect(round.blocks.every((b) => b.color === 'red')).toBe(true);
   });
 
   it('未知の文字はエラー', () => {
