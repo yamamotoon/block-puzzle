@@ -47,6 +47,26 @@ describe('solve 基本', () => {
     expect(res.solvable).toBe(true);
     expect(res.minMoves).toBeGreaterThanOrEqual(2);
   });
+
+  it('L字ブロックはへこみが他ブロックで塞がっていると即座には脱出できない', () => {
+    // 赤L字 (0,0)(1,0)(1,1) は (0,0) だけが左端に触れるが、
+    // へこみの (0,1) を青が塞いでいるので、青をどかすまで脱出できないはず。
+    const lv: Level = {
+      cols: 3,
+      rows: 3,
+      blocks: [
+        { id: 'l', color: 'red', cells: [{ c: 0, r: 0 }, { c: 1, r: 0 }, { c: 1, r: 1 }] },
+        { id: 'o', color: 'blue', cells: [{ c: 0, r: 1 }] },
+      ],
+      gates: [
+        { edge: 'left', start: 0, end: 1, color: 'red' },
+        { edge: 'bottom', start: 0, end: 0, color: 'blue' },
+      ],
+    };
+    const res = solve(lv);
+    expect(res.solvable).toBe(true);
+    expect(res.minMoves).toBeGreaterThanOrEqual(2); // 青をどかす + 赤が脱出
+  });
 });
 
 describe('同梱レベルは全て解ける', () => {

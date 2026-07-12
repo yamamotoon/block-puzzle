@@ -1,4 +1,4 @@
-import type { Level, BlockDef, Cell, Gate } from './types';
+import type { Level, BlockDef, Cell, Edge, Gate } from './types';
 import { validateLevel } from './validate';
 
 /** 実行時のブロック状態（レベル定義 + 消去フラグ）。 */
@@ -12,8 +12,66 @@ function key(c: number, r: number): string {
   return `${c},${r}`;
 }
 
-/** セル集合がゲートに接し、かつゲート幅に収まっているか（純関数。ソルバーと共有）。 */
-export function fitsGate(cells: Cell[], gate: Gate, cols: number, rows: number): boolean {
+/**
+ * L 字など凹んだ形状のブロックで、境界に接していない列/行（へこみ）の先、
+ * 境界までの間に他ブロックが挟まっていないか確認する。
+ * （凸=矩形ブロックは各列/行が必ず先頭で境界に接するので常に true になる）
+ */
+function isClearToEdge(
+  cells: Cell[],
+  edge: Edge,
+  cols: number,
+  rows: number,
+  occupied: ReadonlySet<string>,
+): boolean {
+  if (edge === 'top' || edge === 'bottom') {
+    const byCol = new Map<number, number[]>();
+    for (const c of cells) {
+      const arr = byCol.get(c.c);
+      if (arr) arr.push(c.r);
+      else byCol.set(c.c, [c.r]);
+    }
+    for (const [c, rs] of byCol) {
+      if (edge === 'top') {
+        const lead = Math.min(...rs);
+        for (let r = 0; r < lead; r++) if (occupied.has(key(c, r))) return false;
+      } else {
+        const lead = Math.max(...rs);
+        for (let r = lead + 1; r < rows; r++) if (occupied.has(key(c, r))) return false;
+      }
+    }
+  } else {
+    const byRow = new Map<number, number[]>();
+    for (const c of cells) {
+      const arr = byRow.get(c.r);
+      if (arr) arr.push(c.c);
+      else byRow.set(c.r, [c.c]);
+    }
+    for (const [r, cs] of byRow) {
+      if (edge === 'left') {
+        const lead = Math.min(...cs);
+        for (let c = 0; c < lead; c++) if (occupied.has(key(c, r))) return false;
+      } else {
+        const lead = Math.max(...cs);
+        for (let c = lead + 1; c < cols; c++) if (occupied.has(key(c, r))) return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
+ * セル集合がゲートに接し、かつゲート幅に収まっているか（純関数。ソルバーと共有）。
+ * occupied（自分以外の占有セル）を渡すと、へこみの先に他ブロックが挟まっている
+ * L 字ブロックなどを正しく「脱出不可」と判定する。省略時は形状のみで判定する。
+ */
+export function fitsGate(
+  cells: Cell[],
+  gate: Gate,
+  cols: number,
+  rows: number,
+  occupied?: ReadonlySet<string>,
+): boolean {
   let minC = Infinity;
   let maxC = -Infinity;
   let minR = Infinity;
@@ -24,16 +82,21 @@ export function fitsGate(cells: Cell[], gate: Gate, cols: number, rows: number):
     if (cell.r < minR) minR = cell.r;
     if (cell.r > maxR) maxR = cell.r;
   }
-  switch (gate.edge) {
-    case 'top':
-      return minR === 0 && minC >= gate.start && maxC <= gate.end;
-    case 'bottom':
-      return maxR === rows - 1 && minC >= gate.start && maxC <= gate.end;
-    case 'left':
-      return minC === 0 && minR >= gate.start && maxR <= gate.end;
-    case 'right':
-      return maxC === cols - 1 && minR >= gate.start && maxR <= gate.end;
-  }
+  const inRange = (() => {
+    switch (gate.edge) {
+      case 'top':
+        return minR === 0 && minC >= gate.start && maxC <= gate.end;
+      case 'bottom':
+        return maxR === rows - 1 && minC >= gate.start && maxC <= gate.end;
+      case 'left':
+        return minC === 0 && minR >= gate.start && maxR <= gate.end;
+      case 'right':
+        return maxC === cols - 1 && minR >= gate.start && maxR <= gate.end;
+    }
+  })();
+  if (!inRange) return false;
+  if (!occupied) return true;
+  return isClearToEdge(cells, gate.edge, cols, rows, occupied);
 }
 
 /**
@@ -156,9 +219,10 @@ export class Game {
     return false;
   }
 
-  /** ブロックがゲートに接し、かつゲート幅に収まっているか。 */
+  /** ブロックがゲートに接し、かつゲート幅に収まっているか（他ブロックによるへこみの塞がりも考慮）。 */
   fitsGate(block: Block, gate: Gate): boolean {
-    return fitsGate(block.cells, gate, this.cols, this.rows);
+    const occupied = new Set(this.occupancy(block).keys());
+    return fitsGate(block.cells, gate, this.cols, this.rows, occupied);
   }
 
   /** ブロックが今そのまま出られる同色ゲートを返す（無ければ null）。 */

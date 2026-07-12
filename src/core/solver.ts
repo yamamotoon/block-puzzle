@@ -96,10 +96,10 @@ export function solve(level: Level, maxExpanded = 300000): SolveResult {
     return out;
   };
 
-  const canExitAt = (i: number, a: Cell): boolean => {
+  const canExitAt = (i: number, a: Cell, occ: ReadonlySet<string>): boolean => {
     const cells = absCells(i, a);
     for (const g of gates) {
-      if (g.color === sblocks[i].color && fitsGate(cells, g, cols, rows)) return true;
+      if (g.color === sblocks[i].color && fitsGate(cells, g, cols, rows, occ)) return true;
     }
     return false;
   };
@@ -171,9 +171,10 @@ export function solve(level: Level, maxExpanded = 300000): SolveResult {
       if (!node.anchors[i]) continue;
       const reach = reachable(i, node.anchors);
       const cur = node.anchors[i]!;
+      const occ = occupancyExcept(node.anchors, i);
 
       // 脱出（到達域のどこかでゲートに収まるなら 1 手で消せる）
-      const exitAnchor = reach.find((a) => canExitAt(i, a));
+      const exitAnchor = reach.find((a) => canExitAt(i, a, occ));
       if (exitAnchor) {
         const next = node.anchors.slice();
         next[i] = null;

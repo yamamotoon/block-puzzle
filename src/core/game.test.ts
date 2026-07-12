@@ -85,3 +85,35 @@ describe('Game ゲート判定とクリア', () => {
     expect(g.isCleared()).toBe(true);
   });
 });
+
+describe('Game ゲート判定: L字ブロックのへこみに他ブロックがある場合', () => {
+  // L字（(0,0)(1,0)(1,1)）は (0,0) だけが左端(境界)に触れているが、
+  // へこみ側の (0,1) に別ブロックがあれば実際には抜けられないはず。
+  function lShapeLevel(): Level {
+    return {
+      cols: 3,
+      rows: 3,
+      blocks: [
+        { id: 'l', color: 'red', cells: [{ c: 0, r: 0 }, { c: 1, r: 0 }, { c: 1, r: 1 }] },
+        { id: 'o', color: 'blue', cells: [{ c: 0, r: 1 }] }, // へこみを塞ぐ障害物
+      ],
+      gates: [{ edge: 'left', start: 0, end: 1, color: 'red' }],
+    };
+  }
+
+  it('へこみが他ブロックで塞がっていれば脱出できない', () => {
+    const g = new Game(lShapeLevel());
+    const l = g.blocks[0];
+    expect(g.findExitGate(l)).toBeNull();
+    expect(g.tryExit(l)).toBe(false);
+  });
+
+  it('へこみが空いていれば脱出できる', () => {
+    const level = lShapeLevel();
+    level.blocks.pop(); // 障害物を取り除く
+    const g = new Game(level);
+    const l = g.blocks[0];
+    expect(g.findExitGate(l)).not.toBeNull();
+    expect(g.tryExit(l)).toBe(true);
+  });
+});
