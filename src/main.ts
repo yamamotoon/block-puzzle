@@ -6,7 +6,7 @@ import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
 import type { ColorId, Cell, Edge, Level } from './core/types';
 import { sfx } from './platform/audio';
-import { recordResult, allResults } from './platform/storage';
+import { recordResult, allResults, saveLastLevel, getLastLevel } from './platform/storage';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const app = document.getElementById('app') as HTMLElement;
@@ -14,6 +14,7 @@ const overlay = document.getElementById('overlay') as HTMLElement;
 const levelLabel = document.getElementById('level-label') as HTMLElement;
 const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
+const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
 const prevLvBtn = document.getElementById('prev-btn') as HTMLButtonElement;
 const nextLvBtn = document.getElementById('next-lv-btn') as HTMLButtonElement;
 const solveBtn = document.getElementById('solve-btn') as HTMLButtonElement;
@@ -104,6 +105,7 @@ function enterLevel(index: number): void {
   currentVariantCount = picked.variantCount;
   logStageTransition('enter', currentLevel, currentVariantIndex, currentVariantCount);
   startLevel();
+  saveLastLevel(levelIndex);
 }
 
 /** 現在のレベルをリセットする（同じバリエーションのままやり直す）。 */
@@ -301,6 +303,7 @@ canvas.addEventListener('pointerup', onPointerUp);
 canvas.addEventListener('pointercancel', onPointerUp);
 window.addEventListener('resize', resize);
 resetBtn.addEventListener('click', () => resetLevel());
+retryBtn.addEventListener('click', () => resetLevel());
 nextBtn.addEventListener('click', () => enterLevel(levelIndex + 1));
 prevLvBtn.addEventListener('click', () => enterLevel(levelIndex - 1));
 nextLvBtn.addEventListener('click', () => enterLevel(levelIndex + 1));
@@ -329,6 +332,6 @@ document.addEventListener('click', (e) => {
 });
 
 updateMuteBtn();
-enterLevel(0);
+enterLevel(getLastLevel());
 resize();
 requestAnimationFrame(frame);

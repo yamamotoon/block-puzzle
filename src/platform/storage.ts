@@ -48,3 +48,27 @@ export function recordResult(index: number, moves: number, stars: number): void 
     save(p);
   }
 }
+
+// ---- 最後にプレイしていたレベル（次回起動時の再開用） --------------------
+const LAST_LEVEL_KEY = 'cbj-last-level-v1';
+
+/** 現在挑戦中のレベルを記録する（次回起動時にここから再開する）。 */
+export function saveLastLevel(index: number): void {
+  try {
+    localStorage.setItem(LAST_LEVEL_KEY, String(index));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 前回の続きから再開するためのレベル番号を取得する（未保存なら 0）。 */
+export function getLastLevel(): number {
+  try {
+    const raw = localStorage.getItem(LAST_LEVEL_KEY);
+    if (!raw) return 0;
+    const n = Number(raw);
+    return Number.isInteger(n) && n >= 0 ? n : 0;
+  } catch {
+    return 0;
+  }
+}
