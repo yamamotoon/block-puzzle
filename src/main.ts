@@ -13,6 +13,7 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const app = document.getElementById('app') as HTMLElement;
 const overlay = document.getElementById('overlay') as HTMLElement;
 const levelLabel = document.getElementById('level-label') as HTMLElement;
+const movesLabel = document.getElementById('moves-label') as HTMLElement;
 const resetBtn = document.getElementById('reset-btn') as HTMLButtonElement;
 const nextBtn = document.getElementById('next-btn') as HTMLButtonElement;
 const retryBtn = document.getElementById('retry-btn') as HTMLButtonElement;
@@ -83,6 +84,10 @@ interface Replay {
 }
 let replay: Replay | null = null;
 
+function updateMovesLabel(): void {
+  movesLabel.textContent = `手数: ${movesUsed}`;
+}
+
 /** 現在の currentLevel で盤面を初期状態に組み直す（バリエーションは再抽選しない）。 */
 function startLevel(): void {
   game = new Game(currentLevel);
@@ -95,6 +100,7 @@ function startLevel(): void {
   currentMinMoves = LEVEL_SOLUTIONS[levelIndex][currentVariantIndex].minMoves;
   overlay.classList.remove('show');
   levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVEL_SLOTS.length}`;
+  updateMovesLabel();
 }
 
 /** 指定スロットへ切り替える（バリエーションを新たに抽選する）。 */
@@ -209,6 +215,7 @@ function endDrag(pointerId: number): void {
         sfx.move();
       }
     }
+    updateMovesLabel();
   }
   drag = null;
   dragStartSig = null;
@@ -223,6 +230,8 @@ function frame(ts: number): void {
       applySolveMove(replay.moves[replay.index], ts);
       replay.index++;
       replay.nextTime = ts + REPLAY_STEP;
+      movesUsed++;
+      updateMovesLabel();
     } else {
       replay = null;
       if (game.isCleared()) cleared = true;
