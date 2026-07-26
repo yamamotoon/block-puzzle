@@ -1,7 +1,8 @@
 import { Game } from './core/game';
 import { DragController } from './core/drag';
 import { LEVEL_SLOTS } from './core/levels';
-import { solve, type SolveMove } from './core/solver';
+import { LEVEL_SOLUTIONS } from './core/levels.solutions';
+import type { SolveMove } from './core/solver';
 import { ThreeRenderer } from './render/three';
 import type { ExitEffect, Renderer } from './render/renderer';
 import type { ColorId, Cell, Edge, Level } from './core/types';
@@ -42,7 +43,7 @@ function logStageTransition(action: 'enter' | 'reset', level: Level, variantInde
   const movable = level.blocks.filter((b) => !b.fixed);
   const fixedCount = level.blocks.length - movable.length;
   const colorCount = new Set(movable.map((b) => b.color)).size;
-  const minMoves = solve(level).minMoves;
+  const minMoves = LEVEL_SOLUTIONS[levelIndex][variantIndex].minMoves;
   console.log(
     `[level] ${action} slot=${levelIndex + 1}/${LEVEL_SLOTS.length} variant=${variantIndex + 1}/${variantCount} ` +
       `board=${level.cols}x${level.rows} fixed=${fixedCount} blocks=${movable.length} colors=${colorCount} minMoves=${minMoves}`,
@@ -91,7 +92,7 @@ function startLevel(): void {
   replay = null;
   movesUsed = 0;
   usedSolve = false;
-  currentMinMoves = solve(currentLevel).minMoves;
+  currentMinMoves = LEVEL_SOLUTIONS[levelIndex][currentVariantIndex].minMoves;
   overlay.classList.remove('show');
   levelLabel.textContent = `Level ${levelIndex + 1} / ${LEVEL_SLOTS.length}`;
 }
@@ -117,10 +118,9 @@ function resetLevel(): void {
 /** 現在のレベルを最初から並べ直し、正解手順の自動再生を開始する。 */
 function startReplay(): void {
   resetLevel(); // 同じバリエーションのまま初期状態に戻す
-  const res = solve(currentLevel);
-  if (!res.solvable || !res.path) return;
+  const sol = LEVEL_SOLUTIONS[levelIndex][currentVariantIndex];
   usedSolve = true;
-  replay = { moves: res.path, index: 0, nextTime: 0 };
+  replay = { moves: sol.path, index: 0, nextTime: 0 };
 }
 
 /** 解答の 1 手を適用（ブロックを目標アンカーへ移動、ゲートに収まれば脱出）。 */

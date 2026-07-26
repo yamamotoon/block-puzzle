@@ -68,12 +68,23 @@
   一時 writer テストで丸ごと `writeFileSync` する方式が確実。
 - 追記・再生成後は **tsc → npm test → build** で全スロット・全バリエーションの可解性・健全性・
   解答再生クリア、および `LEVEL_SLOTS` のデータ品質（variant数・スロット内minMoves一致・重複無し）を確認する。
+- **`levels.ts` を追加・変更したら必ず `npm run bake:solutions` を実行する。**
+  `main.ts` は実行時に `solve()` を呼ばず、`src/core/levels.solutions.ts`（`LEVEL_SLOTS` と同じ
+  `[slot][variant]` 構造で minMoves/解答手順を焼き込んだ自動生成ファイル）を読むだけになっている
+  （「解答を見る」クリック時に毎回A*を回すと重く、演出が固まる/飛ぶ原因になっていたため）。
+  焼き忘れは `levels.solutions.test.ts`（スロット/バリエーション数の一致・焼き込み済み手順で
+  実際にクリアできるかを検証）が検知するので、`npm test` が落ちたら焼き直しを疑う。
 
 ## 現状の主要ファイル
 - ロジック: `src/core/game.ts`, `solver.ts`, `generate.ts`, `validate.ts`, `level-format.ts`, `levels.ts`, `types.ts`
 - 描画: `src/render/three.ts`（ギミックの見た目はここ）
 - 結線/UI: `src/main.ts`, `index.html`
-- 生成の実行方法: vitest で一時テストを書き `writeFileSync` する（`vite-node`/`tsx` は未導入）
+- レベル本体（`levels.ts`）の生成: vitest で一時テストを書き `writeFileSync` する（`vite-node`/`tsx` は未導入）。
+  **一時テストは実行後に必ず削除する**（消し忘れて次の `npm test` で再実行され levels.ts が上書きされた事故が過去にある）。
+- 解答データ（`levels.solutions.ts`）の生成: `scripts/bake-solutions.mjs`（`npm run bake:solutions`）。
+  こちらは一時テストではなく常設スクリプトで、Vite の `createServer({ middlewareMode: true }).ssrLoadModule()`
+  を使って拡張子なし import のまま TS を直接読み込む（新規依存追加なしで `.ts` を Node から実行できる、
+  今後 `levels.ts` 側の生成スクリプトを常設化する際もこのパターンが流用できる）。
 
 ## 難易度キュレーションの使い分け
 - 通常ブロックの world：`pickProgression`（extra≥1 で「どかし」必須、易しい入口つき）
